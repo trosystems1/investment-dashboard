@@ -1,0 +1,6 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+body { margin: 0; padding: 0; background: #0D0F14; }
+* { box-sizing: border-box; }
+button { font-family: inherit; }
