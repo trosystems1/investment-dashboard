@@ -1,53 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const MOCK_STOCKS: Record<string, { name: string; base: number; currency: string }> = {
-  '7203.T': { name: 'トヨタ自動車', base: 3450, currency: 'JPY' },
-  '6758.T': { name: 'ソニーグループ', base: 2890, currency: 'JPY' },
-  '8306.T': { name: '三菱UFJフィナンシャル', base: 1580, currency: 'JPY' },
-  '4519.T': { name: '中外製薬', base: 6200, currency: 'JPY' },
-  'AAPL':   { name: 'Apple Inc.', base: 195, currency: 'USD' },
-  'NVDA':   { name: 'NVIDIA Corp.', base: 875, currency: 'USD' },
-  'MSFT':   { name: 'Microsoft Corp.', base: 415, currency: 'USD' },
+  '7203.T': { name: 'Toyota', base: 3450, currency: 'JPY' },
+  '6758.T': { name: 'Sony Group', base: 2890, currency: 'JPY' },
+  '8306.T': { name: 'Mitsubishi UFJ', base: 1580, currency: 'JPY' },
+  '4519.T': { name: 'Chugai Pharma', base: 6200, currency: 'JPY' },
+  'AAPL': { name: 'Apple Inc.', base: 195, currency: 'USD' },
+  'NVDA': { name: 'NVIDIA Corp.', base: 875, currency: 'USD' },
+  'MSFT': { name: 'Microsoft Corp.', base: 415, currency: 'USD' },
+}
+
+async function fetchAlphaVantage(symbol: string) {
+  const key = process.env.ALPHA_VANTAGE_KEY
+  if (!key) return null
+  const av_symbol = symbol.replace('.T', '.TYO')
+  const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${av_symbol}&apikey=${key}`
+  try {
+    const res = await fetch(url, { next: { revalidate: 60 } })
+    if (!res.ok) return null
+    const data = await res.json()
+    const q = data['Global Quote']
+    if (!q || !q['05. price']) return null
+    const price = parseFloat(q['05. price'])
+    const prevClose = parseFloat(q['08. previous close'])
+    const change = parseFloat(q['09. change'])
+    const changePct = parseFloat(q['10. change percent'].replace('%', ''))
+    return { price, prevClose, change, changePct }
+  } catch (_) { return null }
 }
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const symbols = searchParams.get('symbols')?.split(',') || Object.keys(MOCK_STOCKS)
 
-  const headers = {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-    'Accept': 'application/json',
-  }
-
   const results = await Promise.all(
     symbols.map(async (symbol) => {
-      const urls = [
-        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`,
-        `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`,
-      ]
-      for (const url of urls) {
-        try {
-          const res = await fetch(url, { headers, next: { revalidate: 60 } })
-          if (!res.ok) continue
-          const data = await res.json()
-          const meta = data.result?.[0]?.meta
-          if (!meta) continue
-          return {
-            symbol,
-            name: meta.shortName || meta.longName || symbol,
-            price: meta.regularMarketPrice ?? 0,
-            prevClose: meta.chartPreviousClose ?? 0,
-            change: (meta.regularMarketPrice ?? 0) - (meta.chartPreviousClose ?? 0),
-            changePct: (((meta.regularMarketPrice ?? 0) - (meta.chartPreviousClose ?? 0)) / (meta.chartPreviousClose ?? 1)) * 100,
-            currency: meta.currency || 'JPY',
-            source: 'live',
-          }
-        } catch (_) { continue }
-      }
-
-      // モックフォールバック
       const mock = MOCK_STOCKS[symbol]
       if (!mock) return null
+
+      const live = await fetchAlphaVantage(symbol)
+      if (live) {
+        return {
+          symbol,
+          name: mock.name,
+          price: live.price,
+          prevClose: live.prevClose,
+          change: live.change,
+          changePct: live.changePct,
+          currency: mock.currency,
+          source: 'live',
+        }
+      }
+
       const changePct = (Math.random() - 0.45) * 4
       const price = mock.base * (1 + changePct / 100)
       return {
