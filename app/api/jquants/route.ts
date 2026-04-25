@@ -7,22 +7,33 @@ const redis = new Redis({
 })
 
 async function getIdToken(): Promise<string | null> {
-  const refreshToken = process.env.JQUANTS_REFRESH_TOKEN
-  if (!refreshToken) return null
+  const email = process.env.JQUANTS_EMAIL
+  const password = process.env.JQUANTS_PASSWORD
+  if (!email || !password) return null
   try {
-    const res = await fetch(`https://api.jquants.com/v1/token/auth_refresh?refreshtoken=${refreshToken}`, { method: 'POST' })
-    if (!res.ok) return null
-    const data = await res.json()
-    return data.idToken || null
+    const authRes = await fetch('https://api.jquants.com/v1/token/auth_user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mailaddress: email, password }),
+    })
+    if (!authRes.ok) return null
+    const authData = await authRes.json()
+    const refreshToken = authData.refreshToken
+    if (!refreshToken) return null
+
+    const tokenRes = await fetch(`https://api.jquants.com/v1/token/auth_refresh?refreshtoken=${refreshToken}`, { method: 'POST' })
+    if (!tokenRes.ok) return null
+    const tokenData = await tokenRes.json()
+    return tokenData.idToken || null
   } catch (_) { return null }
 }
 
 async function fetchAndStore(codes: string[], idToken: string) {
   const today = new Date()
   const from = new Date(today)
-  from.setDate(from.getDate() - 5)
-  const fromStr = from.toISOString().split('T')[0].replace(/-/g, '-')
-  const toStr = today.toISOString().split('T')[0].replace(/-/g, '-')
+  from.setDate(from.getDate() - 7)
+  const fromStr = from.toISOString().split('T')[0]
+  const toStr = today.toISOString().split('T')[0]
 
   const results: any[] = []
   for (const code of codes) {
@@ -61,8 +72,12 @@ async function fetchAndStore(codes: string[], idToken: string) {
       const history = typeof existing === 'string' ? JSON.parse(existing) : existing
       for (const q of quotes) {
         const dateStr = q.Date
-        if (!history.find((h: any) => h.date === dateStr)) {
-          history.push({ date: new Date(dateStr).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }), value: q.Close, rawDate: dateStr })
+        if (!history.find((h: any) => h.rawDate === dateStr)) {
+          history.push({
+            date: new Date(dateStr).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }),
+            value: q.Close,
+            rawDate: dateStr,
+          })
         }
       }
       history.sort((a: any, b: any) => a.rawDate.localeCompare(b.rawDate))
