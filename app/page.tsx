@@ -15,7 +15,7 @@ interface StockData {
   currency: string
 }
 
-const WATCHLIST = ['7203.T', '6758.T', '8306.T', 'AAPL', 'NVDA', 'MSFT']
+const WATCHLIST = ['228A.T', '4397.T', '4374.T', '431A.T', '4443.T', '4478.T', '3994.T', '4776.T', '4058.T', '4811.T'];
 
 export default function Dashboard() {
   const [stocks, setStocks] = useState<StockData[]>([])
