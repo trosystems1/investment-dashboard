@@ -38,6 +38,8 @@ export async function GET(req: NextRequest) {
       const json = await res.json()
       const data = json.data?.[0]
       if (!data) continue
+      const change = data.C - data.O
+      const changePct = ((data.C - data.O) / data.O) * 100
       const stockData = {
         symbol: stock.symbol,
         price: data.C,
@@ -45,6 +47,9 @@ export async function GET(req: NextRequest) {
         high: data.H,
         low: data.L,
         close: data.C,
+        prevClose: data.O,
+        change: parseFloat(change.toFixed(0)),
+        changePct: parseFloat(changePct.toFixed(2)),
         volume: data.Vo,
         date: data.Date,
         updatedAt: new Date().toISOString(),
