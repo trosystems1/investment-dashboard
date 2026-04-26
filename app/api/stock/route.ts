@@ -7,13 +7,16 @@ const redis = new Redis({
 })
 
 const MOCK_STOCKS: Record<string, { name: string; base: number; currency: string }> = {
-  '7203.T': { name: 'Toyota', base: 3450, currency: 'JPY' },
-  '6758.T': { name: 'Sony Group', base: 2890, currency: 'JPY' },
-  '8306.T': { name: 'Mitsubishi UFJ', base: 1580, currency: 'JPY' },
-  '4519.T': { name: 'Chugai Pharma', base: 6200, currency: 'JPY' },
-  'AAPL':   { name: 'Apple Inc.', base: 195, currency: 'USD' },
-  'NVDA':   { name: 'NVIDIA Corp.', base: 875, currency: 'USD' },
-  'MSFT':   { name: 'Microsoft Corp.', base: 415, currency: 'USD' },
+  '228A.T': { name: 'opro', base: 1000, currency: 'JPY' },
+  '4397.T': { name: 'TeamSpirit', base: 1000, currency: 'JPY' },
+  '4374.T': { name: 'ROBOT PAYMENT', base: 1000, currency: 'JPY' },
+  '431A.T': { name: 'Ysona', base: 1000, currency: 'JPY' },
+  '4443.T': { name: 'Sansan', base: 1000, currency: 'JPY' },
+  '4478.T': { name: 'freee', base: 1000, currency: 'JPY' },
+  '3994.T': { name: 'MoneyForward', base: 1000, currency: 'JPY' },
+  '4776.T': { name: 'Cybozu', base: 1000, currency: 'JPY' },
+  '4058.T': { name: 'Toyokumo', base: 1000, currency: 'JPY' },
+  '4811.T': { name: 'Dream Arts', base: 1000, currency: 'JPY' },
 }
 
 export async function GET(req: NextRequest) {
@@ -27,7 +30,8 @@ export async function GET(req: NextRequest) {
 
       if (symbol.endsWith('.T')) {
         try {
-          const cached: any = await redis.get(`stock:${symbol}`)
+          const jquantsCode = symbol.replace('.T', '0')
+          const cached: any = await redis.get(`stock:${jquantsCode}`)
           if (cached) {
             const data = typeof cached === 'string' ? JSON.parse(cached) : cached
             return { symbol, name: mock.name, ...data, currency: 'JPY', source: 'jquants' }
@@ -39,9 +43,9 @@ export async function GET(req: NextRequest) {
       const price = mock.base * (1 + changePct / 100)
       return {
         symbol, name: mock.name,
-        price: parseFloat(price.toFixed(mock.currency === 'JPY' ? 0 : 2)),
+        price: parseFloat(price.toFixed(0)),
         prevClose: mock.base,
-        change: parseFloat((price - mock.base).toFixed(mock.currency === 'JPY' ? 0 : 2)),
+        change: parseFloat((price - mock.base).toFixed(0)),
         changePct: parseFloat(changePct.toFixed(2)),
         currency: mock.currency,
         source: 'mock',
