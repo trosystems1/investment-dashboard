@@ -1,64 +1,74 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const STOCK_META: Record<string, { name: string; nameEn: string; sector: string; base: number; high52: number; low52: number; per: number; perFwd: number; pbr: number; dividend: number; dividendYield: number; marketCap: number; eps: number; roe: number }> = {
-  '7203.T': { name: 'Toyota', nameEn: 'Toyota Motor', sector: 'Transport', base: 3450, high52: 3890, low52: 2680, per: 9.2, perFwd: 8.7, pbr: 1.1, dividend: 75, dividendYield: 2.17, marketCap: 56200, eps: 374, roe: 12.3 },
-  '6758.T': { name: 'Sony', nameEn: 'Sony Group', sector: 'Electronics', base: 2890, high52: 3280, low52: 2200, per: 18.4, perFwd: 16.2, pbr: 2.3, dividend: 35, dividendYield: 1.21, marketCap: 18400, eps: 157, roe: 13.1 },
-  '8306.T': { name: 'MUFG', nameEn: 'Mitsubishi UFJ', sector: 'Banking', base: 1580, high52: 1820, low52: 1120, per: 11.2, perFwd: 10.4, pbr: 0.9, dividend: 41, dividendYield: 2.59, marketCap: 21300, eps: 141, roe: 8.2 },
-  '4519.T': { name: 'Chugai', nameEn: 'Chugai Pharma', sector: 'Pharma', base: 6200, high52: 7100, low52: 4800, per: 28.5, perFwd: 24.1, pbr: 6.8, dividend: 108, dividendYield: 1.74, marketCap: 10200, eps: 217, roe: 24.6 },
-  '9984.T': { name: 'SoftBank', nameEn: 'SoftBank Group', sector: 'Telecom', base: 9200, high52: 11200, low52: 7400, per: 42.1, perFwd: 32.4, pbr: 1.4, dividend: 44, dividendYield: 0.48, marketCap: 15800, eps: 218, roe: 3.4 },
+const CODE_MAP: Record<string, { name: string; code: string }> = {
+  "228A.T": { name: "opro", code: "228A0" },
+  "4397.T": { name: "TeamSpirit", code: "43970" },
+  "4374.T": { name: "ROBOT PAYMENT", code: "43740" },
+  "431A.T": { name: "Ysona", code: "431A0" },
+  "4443.T": { name: "Sansan", code: "44430" },
+  "4478.T": { name: "freee", code: "44780" },
+  "3994.T": { name: "MoneyForward", code: "39940" },
+  "4776.T": { name: "Cybozu", code: "47760" },
+  "4058.T": { name: "Toyokumo", code: "40580" },
+  "4811.T": { name: "Dream Arts", code: "48110" },
 }
 
-function generateHistory(base: number, days: number): { date: string; value: number }[] {
-  const points: { date: string; value: number }[] = []
-  let val = base * 0.95
-  const now = new Date()
-  for (let i = days; i >= 0; i--) {
-    const d = new Date(now)
-    d.setDate(d.getDate() - i)
-    if (d.getDay() === 0 || d.getDay() === 6) continue
-    val = val * (1 + (Math.random() - 0.485) * 0.014)
-    points.push({ date: d.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }), value: parseFloat(val.toFixed(0)) })
+function getDateRange(range: string) {
+  const to = new Date()
+  const from = new Date()
+  if (range === "1mo") from.setMonth(from.getMonth() - 1)
+  else if (range === "3mo") from.setMonth(from.getMonth() - 3)
+  else if (range === "6mo") from.setMonth(from.getMonth() - 6)
+  else from.setFullYear(from.getFullYear() - 1)
+  return {
+    from: from.toISOString().split("T")[0].replace(/-/g, ""),
+    to: to.toISOString().split("T")[0].replace(/-/g, ""),
   }
-  if (points.length > 0) points[points.length - 1].value = base
-  return points
 }
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const ticker = searchParams.get('ticker') || '7203.T'
-  const range = searchParams.get('range') || '3mo'
-  const meta = STOCK_META[ticker]
-  if (!meta) return NextResponse.json({ error: 'Unknown ticker' }, { status: 404 })
-  const days = range === '1mo' ? 22 : range === '3mo' ? 66 : range === '6mo' ? 130 : 252
-  const interval = range === '1y' ? '1wk' : '1d'
-  let history: { date: string; value: number }[] = []
-  let source = 'mock'
+  const ticker = searchParams.get("ticker") || ""
+  const range = searchParams.get("range") || "3mo"
+  const apiKey = process.env.JQUANTS_API_KEY!
+  const meta = CODE_MAP[ticker]
+  if (!meta) return NextResponse.json({ error: "Unknown ticker" }, { status: 404 })
+
+  const { from, to } = getDateRange(range)
+  const year1From = new Date()
+  year1From.setFullYear(year1From.getFullYear() - 1)
+  const year1FromStr = year1From.toISOString().split("T")[0].replace(/-/g, "")
+
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, next: { revalidate: 300 } })
-    if (res.ok) {
-      const data = await res.json()
-      const result = data.result?.[0]
-      if (result) {
-        const timestamps: number[] = result.timestamp || []
-        const closes: number[] = result.indicators?.quote?.[0]?.close || []
-        history = timestamps.map((t: number, i: number) => ({
-          date: new Date(t * 1000).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }),
-          value: closes[i] ? parseFloat(closes[i].toFixed(0)) : null,
-        })).filter((p: any): p is { date: string; value: number } => p.value !== null)
-        const m = result.meta
-        if (m?.regularMarketPrice) meta.base = m.regularMarketPrice
-        if (m?.fiftyTwoWeekHigh) meta.high52 = m.fiftyTwoWeekHigh
-        if (m?.fiftyTwoWeekLow) meta.low52 = m.fiftyTwoWeekLow
-        source = 'live'
-      }
-    }
-  } catch (_) {}
-  if (!history.length) { history = generateHistory(meta.base, days); source = 'mock' }
-  const price = meta.base
-  const prevClose = price * (1 + (Math.random() - 0.5) * 0.02)
-  const change = price - prevClose
-  const changePct = (change / prevClose) * 100
-  const waterLevel = Math.round(((price - meta.low52) / (meta.high52 - meta.low52)) * 100)
-  return NextResponse.json({ ticker, ...meta, price, change: parseFloat(change.toFixed(0)), changePct: parseFloat(changePct.toFixed(2)), currency: 'JPY', waterLevel, history, source })
+    const [chartRes, year1Res] = await Promise.all([
+      fetch(`https://api.jquants.com/v2/equities/bars/daily?code=${meta.code}&from=${from}&to=${to}`, { headers: { "x-api-key": apiKey } }),
+      fetch(`https://api.jquants.com/v2/equities/bars/daily?code=${meta.code}&from=${year1FromStr}&to=${to}`, { headers: { "x-api-key": apiKey } }),
+    ])
+
+    const chartJson = await chartRes.json()
+    const year1Json = await year1Res.json()
+    const quotes = chartJson.data || []
+    const year1Quotes = year1Json.data || []
+
+    const latest = quotes[quotes.length - 1]
+    const prev = quotes.length > 1 ? quotes[quotes.length - 2] : latest
+    const high52 = year1Quotes.length ? Math.max(...year1Quotes.map((q: any) => q.H)) : latest?.H || 0
+    const low52 = year1Quotes.length ? Math.min(...year1Quotes.map((q: any) => q.L)) : latest?.L || 0
+    const price = latest?.C || 0
+    const waterLevel = high52 > low52 ? Math.round((price - low52) / (high52 - low52) * 100) : 50
+
+    const history = quotes.map((q: any) => ({ date: q.Date.slice(5), value: q.C }))
+
+    return NextResponse.json({
+      ticker, name: meta.name, sector: "SaaS", price,
+      change: parseFloat((latest?.C - prev?.C).toFixed(0)),
+      changePct: parseFloat(((latest?.C - prev?.C) / prev?.C * 100).toFixed(2)),
+      open: latest?.O, high: latest?.H, low: latest?.L, volume: latest?.Vo,
+      high52, low52, waterLevel, history,
+      per: 0, perFwd: 0, pbr: 0, dividend: 0, dividendYield: 0,
+      marketCap: 0, eps: 0, roe: 0, source: "jquants",
+    })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 })
+  }
 }
