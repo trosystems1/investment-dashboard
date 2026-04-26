@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
       if (symbol.endsWith('.T')) {
         try {
-          const jquantsCode = symbol.replace('.T', '0') + '.T'
+          const jquantsCode = symbol
           const cached: any = await redis.get(`stock:${jquantsCode}`)
           if (cached) {
             const data = typeof cached === 'string' ? JSON.parse(cached) : cached
