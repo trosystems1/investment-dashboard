@@ -154,20 +154,52 @@ export default function StockPage() {
             </div>
 
             <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 16 }}>
-              <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12, letterSpacing: '1px', textTransform: 'uppercase' }}>財務情報</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10 }}>
-                <Card label="売上高" value={fmtB(data.sales)} />
-                <Card label="営業利益" value={fmtB(data.op)} gold />
-                <Card label="経常利益" value={fmtB(data.ord)} />
-                <Card label="純利益" value={fmtB(data.np)} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div style={{ fontSize: 12, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase' }}>財務情報</div>
+                <div style={{ fontSize: 11, color: '#4B5563' }}>大きい数字 = 通期予想　小さい数字 = 実績（計画進捗率%）</div>
               </div>
+
+              {/* 売上高・営業利益・経常利益・純利益 */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10 }}>
+                {(['sales', 'op', 'odp', 'np'] as const).map((key, i) => {
+                  const labels = ['売上高', '営業利益', '経常利益', '純利益']
+                  const forecast = data.forecast?.[key] ?? 0
+                  const actuals: { period: string; value: number }[] = (data.quarterActuals || []).map((q: any) => ({ period: q.period, value: q[key] ?? 0 }))
+                  return (
+                    <div key={key} style={{ background: i === 1 ? 'rgba(196,156,72,0.06)' : 'rgba(255,255,255,0.02)', border: '0.5px solid ' + (i === 1 ? 'rgba(196,156,72,0.2)' : 'rgba(255,255,255,0.06)'), borderRadius: 10, padding: '12px 14px' }}>
+                      <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 6 }}>{labels[i]}</div>
+                      {forecast > 0 ? (
+                        <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: i === 1 ? '#C49C48' : '#E8E4D9', marginBottom: 8 }}>{fmtB(forecast)}</div>
+                      ) : (
+                        <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#4B5563', marginBottom: 8 }}>-</div>
+                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {actuals.filter(a => a.value > 0).map(a => {
+                          const pct = forecast > 0 ? Math.round(a.value / forecast * 100) : null
+                          return (
+                            <div key={a.period} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: 11, color: '#9CA3AF' }}>{a.period} {fmtB(a.value)}</span>
+                              {pct !== null && (
+                                <span style={{ fontSize: 11, color: pct >= 75 ? '#4ADE80' : pct >= 50 ? '#C49C48' : '#9CA3AF', fontWeight: 500 }}>{pct}%</span>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* EPS・PER・総資産・純資産 */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-                <Card label="EPS" value={'¥' + (data.eps?.toFixed(1) ?? '-')} gold />
-                <Card label="PER" value={data.per > 0 ? data.per + 'x' : '-'} sub="株価÷EPS" />
+                <Card label="EPS（予想）" value={data.forecast?.eps > 0 ? '¥' + data.forecast.eps.toFixed(1) : '¥' + (data.eps?.toFixed(1) ?? '-')} gold />
+                <Card label="PER（予想）" value={data.forecast?.per > 0 ? data.forecast.per + 'x' : data.per > 0 ? data.per + 'x' : '-'} sub="株価÷EPS予想" />
                 <Card label="総資産" value={fmtB(data.ta)} />
                 <Card label="純資産" value={fmtB(data.eq)} />
               </div>
             </div>
+
           </div>
         )}
       </div>
