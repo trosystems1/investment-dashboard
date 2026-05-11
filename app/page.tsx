@@ -86,8 +86,11 @@ export default function Dashboard() {
 
   const holdings = entries.filter(e => e.category === 'holding')
   const watchlist = entries.filter(e => e.category === 'watch')
-  const holdingPrices  = prices.filter(p => holdings.some(h => h.symbol === p.symbol))
-  const watchlistPrices = prices.filter(p => watchlist.some(w => w.symbol === p.symbol))
+  const priceMap = Object.fromEntries(prices.map(p => [p.symbol, p]))
+
+  // entries 全銘柄を表示（価格未取得はプレースホルダー）
+  const holdingPrices  = holdings.map(e => priceMap[e.symbol] ?? { symbol: e.symbol, name: e.name, price: 0, change: 0, changePct: 0, currency: 'JPY' })
+  const watchlistPrices = watchlist.map(e => priceMap[e.symbol] ?? { symbol: e.symbol, name: e.name, price: 0, change: 0, changePct: 0, currency: 'JPY' })
 
   const avgChange = prices.length
     ? (prices.reduce((s, x) => s + x.changePct, 0) / prices.length).toFixed(2) : null
