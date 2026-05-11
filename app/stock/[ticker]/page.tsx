@@ -56,7 +56,13 @@ export default function StockPage() {
 
   useEffect(() => {
     setLoading(true)
-    fetch('/api/stock-detail?ticker=' + encodeURIComponent(ticker) + '&range=' + range)
+    let nameParam = ''
+    try {
+      const entries: any[] = JSON.parse(localStorage.getItem('apex_stocks_v1') || '[]')
+      const found = entries.find((e: any) => e.symbol === ticker)
+      if (found?.name) nameParam = '&name=' + encodeURIComponent(found.name)
+    } catch {}
+    fetch('/api/stock-detail?ticker=' + encodeURIComponent(ticker) + '&range=' + range + nameParam)
       .then((r) => r.json())
       .then((json) => {
         setData(json)
