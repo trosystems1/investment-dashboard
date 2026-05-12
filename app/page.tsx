@@ -5,6 +5,7 @@ import KpiCard from '@/components/KpiCard'
 import StockTable from '@/components/StockTable'
 import InvestorTypesChart from '@/components/InvestorTypesChart'
 import TopixChart from '@/components/TopixChart'
+import NenkinRanking from '@/components/NenkinRanking'
 
 interface StockData {
   symbol: string; name: string; price: number
