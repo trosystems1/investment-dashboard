@@ -232,6 +232,10 @@ export default function Dashboard() {
           })}
         </div>
 
+      <div style={{ marginTop: 20 }}>
+        <NenkinRanking />
+      </div>
+
       </div>
     </div>
   )
