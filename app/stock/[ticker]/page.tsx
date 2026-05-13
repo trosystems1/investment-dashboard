@@ -296,7 +296,7 @@ export default function StockPage() {
           <button onClick={() => router.push('/')} style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 14px', color: '#B8B4A8', cursor: 'pointer', fontSize: 13 }}>← Back</button>
           {!loading && data && (
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, ... }}>APEX Portfolio</h1>
+            　<h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, margin: 0, color: '#E8E4D9', letterSpacing: '-0.5px' }}>{data.name}</h1>
               <span style={{ fontSize: 13, color: '#6B7280' }}>{ticker}</span>
               {data.finPeriod && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 6, background: 'rgba(196,156,72,0.1)', color: '#C49C48' }}>{data.finPeriod} {data.finDate}</span>}
             </div>
