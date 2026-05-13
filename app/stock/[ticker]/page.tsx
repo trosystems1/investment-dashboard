@@ -10,6 +10,15 @@ const RANGE_LABELS: Record<Range, string> = { '1mo': '1M', '3mo': '3M', '6mo': '
 const fmt = (n: number) => n?.toLocaleString() ?? '-'
 const fmtB = (n: number) => n ? (n / 100000000).toFixed(1) + '億' : '-'
 
+const finForecastValueStyle = (color: string) => ({ fontSize: 18, fontFamily: 'Georgia, serif' as const, color })
+const finForecastFootStyle = (color: string) => ({
+  fontSize: 10,
+  fontFamily: 'Georgia, serif' as const,
+  color,
+  marginTop: 8,
+  lineHeight: 1.35,
+})
+
 const Q_PREF = ['3Q', '2Q', '1Q'] as const
 function qOrderNum(period: string) {
   if (period === '1Q') return 1
@@ -356,42 +365,55 @@ export default function StockPage() {
 
             <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 16 }}>
               <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12, letterSpacing: '1px', textTransform: 'uppercase' }}>財務情報</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10 }}>
-                <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 14px' }}>
-                  <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>売上高（予想）</div>
-                  <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#E8E4D9' }}>{fmtB(data.sales)}</div>
-                  {finQp && (
-                    <div style={{ fontSize: 10, color: quarterProgressColor(finQp.salesPct), marginTop: 8, lineHeight: 1.35 }}>
-                      {finQp.picked.period} {fmtB(finQp.picked.sales)}{finQp.salesPct != null ? ` (${finQp.salesPct}%)` : ''}
+              <div style={{ overflowX: 'auto', marginBottom: 10, WebkitOverflowScrolling: 'touch' }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))',
+                    gap: 10,
+                    width: '100%',
+                    minWidth: 0,
+                  }}
+                >
+                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 14px', minWidth: 0 }}>
+                    <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>売上高（予想）</div>
+                    <div style={finForecastValueStyle('#E8E4D9')}>{fmtB(data.sales)}</div>
+                    {finQp && (
+                      <div style={finForecastFootStyle(quarterProgressColor(finQp.salesPct))}>
+                        {finQp.picked.period} {fmtB(finQp.picked.sales)}{finQp.salesPct != null ? ` (${finQp.salesPct}%)` : ''}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ background: 'rgba(196,156,72,0.06)', border: '0.5px solid rgba(196,156,72,0.25)', borderRadius: 10, padding: '12px 14px', minWidth: 0 }}>
+                    <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>営業利益（予想）</div>
+                    <div style={finForecastValueStyle('#C49C48')}>{fmtB(data.op)}</div>
+                    {finQp && (
+                      <div style={finForecastFootStyle(quarterProgressColor(finQp.opPct))}>
+                        {finQp.picked.period} {fmtB(finQp.picked.op)}{finQp.opPct != null ? ` (${finQp.opPct}%)` : ''}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 14px', minWidth: 0 }}>
+                    <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>純利益（予想）</div>
+                    <div style={finForecastValueStyle('#E8E4D9')}>{fmtB(data.np)}</div>
+                    {finQp && (
+                      <div style={finForecastFootStyle(quarterProgressColor(finQp.npPct))}>
+                        {finQp.picked.period} {fmtB(finQp.picked.np)}{finQp.npPct != null ? ` (${finQp.npPct}%)` : ''}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ background: 'rgba(196,156,72,0.06)', border: '0.5px solid rgba(196,156,72,0.25)', borderRadius: 10, padding: '12px 14px', minWidth: 0 }}>
+                    <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>EPS（予想）</div>
+                    <div style={finForecastValueStyle('#C49C48')}>
+                      ¥{data.eps != null && data.eps !== '' && Number.isFinite(Number(data.eps)) ? Number(data.eps).toFixed(1) : '-'}
                     </div>
-                  )}
-                </div>
-                <div style={{ background: 'rgba(196,156,72,0.06)', border: '0.5px solid rgba(196,156,72,0.25)', borderRadius: 10, padding: '12px 14px' }}>
-                  <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>営業利益（予想）</div>
-                  <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#C49C48' }}>{fmtB(data.op)}</div>
-                  {finQp && (
-                    <div style={{ fontSize: 10, color: quarterProgressColor(finQp.opPct), marginTop: 8, lineHeight: 1.35 }}>
-                      {finQp.picked.period} {fmtB(finQp.picked.op)}{finQp.opPct != null ? ` (${finQp.opPct}%)` : ''}
-                    </div>
-                  )}
-                </div>
-                <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 14px' }}>
-                  <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>純利益（予想）</div>
-                  <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#E8E4D9' }}>{fmtB(data.np)}</div>
-                  {finQp && (
-                    <div style={{ fontSize: 10, color: quarterProgressColor(finQp.npPct), marginTop: 8, lineHeight: 1.35 }}>
-                      {finQp.picked.period} {fmtB(finQp.picked.np)}{finQp.npPct != null ? ` (${finQp.npPct}%)` : ''}
-                    </div>
-                  )}
-                </div>
-                <div style={{ background: 'rgba(196,156,72,0.06)', border: '0.5px solid rgba(196,156,72,0.25)', borderRadius: 10, padding: '12px 14px' }}>
-                  <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>EPS（予想）</div>
-                  <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#C49C48' }}>{'¥' + (data.eps?.toFixed(1) ?? '-')}</div>
-                  {finQp && (
-                    <div style={{ fontSize: 10, color: quarterProgressColor(finQp.epsPct), marginTop: 8, lineHeight: 1.35 }}>
-                      {finQp.picked.period} {finQp.picked.eps ? '¥' + finQp.picked.eps.toFixed(1) : '-'}{finQp.epsPct != null ? ` (${finQp.epsPct}%)` : ''}
-                    </div>
-                  )}
+                    {finQp && (
+                      <div style={finForecastFootStyle(quarterProgressColor(finQp.epsPct))}>
+                        {finQp.picked.period} {finQp.picked.eps != null && finQp.picked.eps !== '' && Number.isFinite(Number(finQp.picked.eps)) ? '¥' + Number(finQp.picked.eps).toFixed(1) : '-'}
+                        {finQp.epsPct != null ? ` (${finQp.epsPct}%)` : ''}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
