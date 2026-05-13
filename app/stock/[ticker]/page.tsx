@@ -10,12 +10,12 @@ const RANGE_LABELS: Record<Range, string> = { '1mo': '1M', '3mo': '3M', '6mo': '
 const fmt = (n: number) => n?.toLocaleString() ?? '-'
 const fmtB = (n: number) => n ? (n / 100000000).toFixed(1) + '億' : '-'
 
-const FONT_SANS = "'Plus Jakarta Sans', 'Noto Sans JP', sans-serif" as const
+const FONT_BODY = 'var(--font-body)' as const
 
-const finForecastValueStyle = (color: string) => ({ fontSize: 18, fontFamily: FONT_SANS, color })
+const finForecastValueStyle = (color: string) => ({ fontSize: 18, fontFamily: FONT_BODY, color })
 const finForecastFootStyle = (color: string) => ({
   fontSize: 10,
-  fontFamily: FONT_SANS,
+  fontFamily: FONT_BODY,
   color,
   marginTop: 8,
   lineHeight: 1.35,
@@ -250,7 +250,7 @@ function Card({ label, value, sub, gold }: { label: string; value: string; sub?:
   return (
     <div style={{ background: gold ? 'rgba(196,156,72,0.06)' : 'rgba(255,255,255,0.03)', border: '0.5px solid ' + (gold ? 'rgba(196,156,72,0.25)' : 'rgba(255,255,255,0.07)'), borderRadius: 10, padding: '12px 14px' }}>
       <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 18, fontFamily: FONT_SANS, color: gold ? '#C49C48' : '#E8E4D9' }}>{value}</div>
+      <div style={{ fontSize: 18, fontFamily: FONT_BODY, color: gold ? '#C49C48' : '#E8E4D9' }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: '#4B5563', marginTop: 2 }}>{sub}</div>}
     </div>
   )
@@ -288,14 +288,14 @@ export default function StockPage() {
           })
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0D0F14', padding: '20px', fontFamily: FONT_SANS, color: '#E8E4D9' }}>
+    <div style={{ minHeight: '100vh', background: '#0D0F14', padding: '20px', fontFamily: FONT_BODY, color: '#E8E4D9' }}>
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
           <button onClick={() => router.push('/')} style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 14px', color: '#B8B4A8', cursor: 'pointer', fontSize: 13 }}>← Back</button>
           {!loading && data && (
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-              <h1 style={{ fontFamily: FONT_SANS, fontSize: 24, margin: 0 }}>{data.name}</h1>
+              <h1 style={{ fontFamily: FONT_BODY, fontSize: 24, margin: 0 }}>{data.name}</h1>
               <span style={{ fontSize: 13, color: '#6B7280' }}>{ticker}</span>
               {data.finPeriod && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 6, background: 'rgba(196,156,72,0.1)', color: '#C49C48' }}>{data.finPeriod} {data.finDate}</span>}
             </div>
@@ -308,7 +308,7 @@ export default function StockPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16 }}>
-              <div style={{ fontFamily: FONT_SANS, fontSize: 40, color: '#C49C48', lineHeight: 1 }}>¥{fmt(data.price)}</div>
+              <div style={{ fontFamily: FONT_BODY, fontSize: 40, color: '#C49C48', lineHeight: 1 }}>¥{fmt(data.price)}</div>
               <div style={{ fontSize: 15, padding: '4px 12px', borderRadius: 12, background: isUp ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)', color: isUp ? '#4ADE80' : '#F87171' }}>
                 {isUp ? '+' : ''}{fmt(data.change)} ({isUp ? '+' : ''}{data.changePct?.toFixed(2)}%)
               </div>
@@ -503,11 +503,11 @@ export default function StockPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
                   <div style={{ background: 'rgba(99,102,241,0.08)', border: '0.5px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: '12px 14px' }}>
                     <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>直近被保険者数</div>
-                    <div style={{ fontSize: 24, fontFamily: FONT_SANS, color: '#E8E4D9' }}>{fmt(data.nenkin.insuredCount)}<span style={{ fontSize: 12, marginLeft: 4 }}>人</span></div>
+                    <div style={{ fontSize: 24, fontFamily: FONT_BODY, color: '#E8E4D9' }}>{fmt(data.nenkin.insuredCount)}<span style={{ fontSize: 12, marginLeft: 4 }}>人</span></div>
                   </div>
                   <div style={{ background: 'rgba(99,102,241,0.08)', border: '0.5px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: '12px 14px' }}>
                     <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>前月比</div>
-                    <div style={{ fontSize: 24, fontFamily: FONT_SANS, color: data.nenkin.changeCount >= 0 ? '#4ADE80' : '#F87171' }}>
+                    <div style={{ fontSize: 24, fontFamily: FONT_BODY, color: data.nenkin.changeCount >= 0 ? '#4ADE80' : '#F87171' }}>
                       {data.nenkin.changeCount >= 0 ? '+' : ''}{fmt(data.nenkin.changeCount)}<span style={{ fontSize: 12, marginLeft: 4 }}>人</span>
                     </div>
                     <div style={{ fontSize: 11, color: data.nenkin.changePct >= 0 ? '#4ADE80' : '#F87171', marginTop: 2 }}>
@@ -516,7 +516,7 @@ export default function StockPage() {
                   </div>
                   <div style={{ background: 'rgba(99,102,241,0.08)', border: '0.5px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: '12px 14px' }}>
                     <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>取得月</div>
-                    <div style={{ fontSize: 16, fontFamily: FONT_SANS, color: '#E8E4D9' }}>
+                    <div style={{ fontSize: 16, fontFamily: FONT_BODY, color: '#E8E4D9' }}>
                       {new Date(data.nenkin.recordDate).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })}
                     </div>
                   </div>

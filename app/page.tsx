@@ -123,7 +123,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0D0F14', padding: '24px', fontFamily: "'Plus Jakarta Sans', 'Noto Sans JP', sans-serif", color: '#E8E4D9' }}>
+    <div style={{ minHeight: '100vh', background: '#0D0F14', padding: '24px', fontFamily: 'var(--font-body)', color: '#E8E4D9' }}>
       <div style={{ position: 'fixed', top: -200, right: -200, width: 500, height: 500, background: 'radial-gradient(circle, rgba(196,156,72,0.06) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
       <div style={{ position: 'fixed', bottom: -100, left: -100, width: 400, height: 400, background: 'radial-gradient(circle, rgba(59,130,246,0.06) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 1280, margin: '0 auto' }}>
@@ -131,7 +131,7 @@ export default function Dashboard() {
         {/* ヘッダー */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
           <div>
-            <h1 style={{ fontFamily: 'DM Serif Display, serif', fontSize: 28, margin: 0, color: '#E8E4D9', letterSpacing: '-0.5px' }}>APEX Portfolio</h1>
+            <h1 style={{ fontFamily: 'var(--font-title-display)', fontSize: 28, margin: 0, color: '#E8E4D9', letterSpacing: '-0.5px', fontWeight: 400 }}>APEX Portfolio</h1>
             <p style={{ fontSize: 11, color: '#6B7280', margin: '4px 0 0', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Private Wealth · Global Multi-Asset</p>
             <div style={{ width: 40, height: 2, background: 'linear-gradient(to right, #C49C48, transparent)', borderRadius: 1, marginTop: 8 }} />
           </div>
