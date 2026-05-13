@@ -116,6 +116,7 @@ export default function StockPage() {
   const ticker = decodeURIComponent(params.ticker as string)
   const [data, setData] = useState<any>(null)
   const [range, setRange] = useState<Range>('3mo')
+  const [finTableTab, setFinTableTab] = useState<'quarter' | 'fy'>('quarter')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -128,6 +129,10 @@ export default function StockPage() {
   const finQp = data
     ? getQuarterProgress(data.quarters, { sales: data.sales, op: data.op, np: data.np, eps: data.eps })
     : null
+  const quarterTableRows =
+    data?.quarters?.filter((q: any) =>
+      finTableTab === 'quarter' ? ['1Q', '2Q', '3Q'].includes(q.period) : q.period === 'FY'
+    ) ?? []
 
   return (
     <div style={{ minHeight: '100vh', background: '#0D0F14', padding: '20px', fontFamily: 'system-ui, sans-serif', color: '#E8E4D9' }}>
@@ -210,46 +215,38 @@ export default function StockPage() {
             <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 16 }}>
               <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12, letterSpacing: '1px', textTransform: 'uppercase' }}>財務情報</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 14px' }}>
-                    <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>売上高（予想）</div>
-                    <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#E8E4D9' }}>{fmtB(data.sales)}</div>
-                  </div>
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>売上高（予想）</div>
+                  <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#E8E4D9' }}>{fmtB(data.sales)}</div>
                   {finQp && (
-                    <div style={{ fontSize: 10, color: quarterProgressColor(finQp.salesPct), paddingLeft: 2, lineHeight: 1.35 }}>
+                    <div style={{ fontSize: 10, color: quarterProgressColor(finQp.salesPct), marginTop: 8, lineHeight: 1.35 }}>
                       {finQp.picked.period} {fmtB(finQp.picked.sales)}{finQp.salesPct != null ? ` (${finQp.salesPct}%)` : ''}
                     </div>
                   )}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ background: 'rgba(196,156,72,0.06)', border: '0.5px solid rgba(196,156,72,0.25)', borderRadius: 10, padding: '12px 14px' }}>
-                    <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>営業利益（予想）</div>
-                    <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#C49C48' }}>{fmtB(data.op)}</div>
-                  </div>
+                <div style={{ background: 'rgba(196,156,72,0.06)', border: '0.5px solid rgba(196,156,72,0.25)', borderRadius: 10, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>営業利益（予想）</div>
+                  <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#C49C48' }}>{fmtB(data.op)}</div>
                   {finQp && (
-                    <div style={{ fontSize: 10, color: quarterProgressColor(finQp.opPct), paddingLeft: 2, lineHeight: 1.35 }}>
+                    <div style={{ fontSize: 10, color: quarterProgressColor(finQp.opPct), marginTop: 8, lineHeight: 1.35 }}>
                       {finQp.picked.period} {fmtB(finQp.picked.op)}{finQp.opPct != null ? ` (${finQp.opPct}%)` : ''}
                     </div>
                   )}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 14px' }}>
-                    <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>純利益（予想）</div>
-                    <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#E8E4D9' }}>{fmtB(data.np)}</div>
-                  </div>
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>純利益（予想）</div>
+                  <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#E8E4D9' }}>{fmtB(data.np)}</div>
                   {finQp && (
-                    <div style={{ fontSize: 10, color: quarterProgressColor(finQp.npPct), paddingLeft: 2, lineHeight: 1.35 }}>
+                    <div style={{ fontSize: 10, color: quarterProgressColor(finQp.npPct), marginTop: 8, lineHeight: 1.35 }}>
                       {finQp.picked.period} {fmtB(finQp.picked.np)}{finQp.npPct != null ? ` (${finQp.npPct}%)` : ''}
                     </div>
                   )}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ background: 'rgba(196,156,72,0.06)', border: '0.5px solid rgba(196,156,72,0.25)', borderRadius: 10, padding: '12px 14px' }}>
-                    <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>EPS（予想）</div>
-                    <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#C49C48' }}>{'¥' + (data.eps?.toFixed(1) ?? '-')}</div>
-                  </div>
+                <div style={{ background: 'rgba(196,156,72,0.06)', border: '0.5px solid rgba(196,156,72,0.25)', borderRadius: 10, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>EPS（予想）</div>
+                  <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#C49C48' }}>{'¥' + (data.eps?.toFixed(1) ?? '-')}</div>
                   {finQp && (
-                    <div style={{ fontSize: 10, color: quarterProgressColor(finQp.epsPct), paddingLeft: 2, lineHeight: 1.35 }}>
+                    <div style={{ fontSize: 10, color: quarterProgressColor(finQp.epsPct), marginTop: 8, lineHeight: 1.35 }}>
                       {finQp.picked.period} {finQp.picked.eps ? '¥' + finQp.picked.eps.toFixed(1) : '-'}{finQp.epsPct != null ? ` (${finQp.epsPct}%)` : ''}
                     </div>
                   )}
@@ -264,7 +261,25 @@ export default function StockPage() {
 
             {data.quarters && data.quarters.length > 0 && (
               <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 16 }}>
-                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12, letterSpacing: '1px', textTransform: 'uppercase' }}>四半期業績推移</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ fontSize: 12, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase' }}>四半期業績推移</div>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button
+                      type="button"
+                      onClick={() => setFinTableTab('quarter')}
+                      style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', border: 'none', background: finTableTab === 'quarter' ? 'rgba(196,156,72,0.15)' : 'transparent', color: finTableTab === 'quarter' ? '#C49C48' : '#6B7280' }}
+                    >
+                      四半期
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFinTableTab('fy')}
+                      style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', border: 'none', background: finTableTab === 'fy' ? 'rgba(196,156,72,0.15)' : 'transparent', color: finTableTab === 'fy' ? '#C49C48' : '#6B7280' }}
+                    >
+                      通期
+                    </button>
+                  </div>
+                </div>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead>
@@ -277,17 +292,23 @@ export default function StockPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.quarters.map((q: any, i: number) => (
-                        <tr key={i} style={{ borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}>
-                          <td style={{ padding: '8px 8px', color: '#C49C48', fontWeight: 500 }}>
-                            {q.fyEnd ? q.fyEnd.slice(0, 4) + ' ' : ''}{q.period}
-                          </td>
-                          <td style={{ textAlign: 'right', padding: '8px 8px', color: '#E8E4D9' }}>{q.sales ? (q.sales / 100000000).toFixed(1) + '億' : '-'}</td>
-                          <td style={{ textAlign: 'right', padding: '8px 8px', color: q.op >= 0 ? '#4ADE80' : '#F87171' }}>{q.op ? (q.op / 100000000).toFixed(1) + '億' : '-'}</td>
-                          <td style={{ textAlign: 'right', padding: '8px 8px', color: q.np >= 0 ? '#4ADE80' : '#F87171' }}>{q.np ? (q.np / 100000000).toFixed(1) + '億' : '-'}</td>
-                          <td style={{ textAlign: 'right', padding: '8px 8px', color: '#E8E4D9' }}>{q.eps ? '¥' + q.eps.toFixed(1) : '-'}</td>
+                      {quarterTableRows.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} style={{ padding: '16px 8px', color: '#6B7280', textAlign: 'center' }}>該当するデータがありません</td>
                         </tr>
-                      ))}
+                      ) : (
+                        quarterTableRows.map((q: any, i: number) => (
+                          <tr key={(q.fyEnd || '') + '-' + q.period + '-' + (q.discDate || i)} style={{ borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}>
+                            <td style={{ padding: '8px 8px', color: '#C49C48', fontWeight: 500 }}>
+                              {q.fyEnd ? q.fyEnd.slice(0, 4) + ' ' : ''}{q.period}
+                            </td>
+                            <td style={{ textAlign: 'right', padding: '8px 8px', color: '#E8E4D9' }}>{q.sales ? (q.sales / 100000000).toFixed(1) + '億' : '-'}</td>
+                            <td style={{ textAlign: 'right', padding: '8px 8px', color: q.op >= 0 ? '#4ADE80' : '#F87171' }}>{q.op ? (q.op / 100000000).toFixed(1) + '億' : '-'}</td>
+                            <td style={{ textAlign: 'right', padding: '8px 8px', color: q.np >= 0 ? '#4ADE80' : '#F87171' }}>{q.np ? (q.np / 100000000).toFixed(1) + '億' : '-'}</td>
+                            <td style={{ textAlign: 'right', padding: '8px 8px', color: '#E8E4D9' }}>{q.eps ? '¥' + q.eps.toFixed(1) : '-'}</td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
