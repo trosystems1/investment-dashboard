@@ -64,9 +64,63 @@ function quarterProgressColor(pct: number | null) {
   return pct != null && pct >= 75 ? '#4ADE80' : '#C49C48'
 }
 
-/** 累計ベースの四半期データから、年度ごとに 1Q〜4Q の単独値行を生成（開示が新しい順で年度を並べる） */
+function formatTableSales(v: number | null | undefined, isStandalone: boolean) {
+  if (isStandalone) {
+    return v != null && Number.isFinite(v) ? (v / 100000000).toFixed(1) + '億' : '-'
+  }
+  return v ? (v / 100000000).toFixed(1) + '億' : '-'
+}
+
+function formatTableOpNp(v: number | null | undefined, isStandalone: boolean) {
+  if (isStandalone) {
+    return v != null && Number.isFinite(v) ? (v / 100000000).toFixed(1) + '億' : '-'
+  }
+  return v ? (v / 100000000).toFixed(1) + '億' : '-'
+}
+
+function formatTableEps(v: number | null | undefined, isStandalone: boolean) {
+  if (isStandalone) {
+    return v != null && Number.isFinite(v) ? '¥' + v.toFixed(1) : '-'
+  }
+  return v ? '¥' + v.toFixed(1) : '-'
+}
+
+/** 売上〜EPSのいずれかが表示可能なら true */
+function quarterRowHasData(row: any, standalone: boolean) {
+  return (
+    formatTableSales(row.sales, standalone) !== '-' ||
+    formatTableOpNp(row.op, standalone) !== '-' ||
+    formatTableOpNp(row.np, standalone) !== '-' ||
+    formatTableEps(row.eps, standalone) !== '-'
+  )
+}
+
+function parseFyEndDate(fe: string): Date {
+  const s = String(fe).trim()
+  if (/^\d{8}$/.test(s)) {
+    return new Date(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8))
+  }
+  const t = Date.parse(s)
+  if (!Number.isNaN(t)) return new Date(t)
+  return new Date(NaN)
+}
+
+/** 3月決算の会計年度想定で、各四半期の終了日時刻（並び替え用） */
+function fiscalQuarterEndMs(fyEnd: string, qn: 1 | 2 | 3 | 4): number {
+  const end = parseFyEndDate(fyEnd)
+  const t = end.getTime()
+  if (Number.isNaN(t)) return 0
+  const Y = end.getFullYear()
+  if (qn === 4) return t
+  if (qn === 3) return new Date(Y - 1, 11, 31, 23, 59, 59, 999).getTime()
+  if (qn === 2) return new Date(Y - 1, 8, 30, 23, 59, 59, 999).getTime()
+  return new Date(Y - 1, 5, 30, 23, 59, 59, 999).getTime()
+}
+
+/** 累計ベースの四半期データから 1Q〜4Q の単独行を生成し、四半期終了が新しい順に並べる */
 function buildQuarterStandaloneRows(quarters: any[] | undefined) {
-  if (!quarters?.length) return [] as { key: string; label: string; sales: number | null; op: number | null; np: number | null; eps: number | null }[]
+  if (!quarters?.length)
+    return [] as { key: string; label: string; sales: number | null; op: number | null; np: number | null; eps: number | null }[]
 
   const byFy = new Map<string, { q1?: any; q2?: any; q3?: any; fy?: any }>()
   for (const q of quarters) {
@@ -111,7 +165,7 @@ function buildQuarterStandaloneRows(quarters: any[] | undefined) {
     }
   }
 
-  const out: { key: string; label: string; sales: number | null; op: number | null; np: number | null; eps: number | null }[] = []
+  const out: { key: string; label: string; sales: number | null; op: number | null; np: number | null; eps: number | null; sortMs: number }[] = []
   for (const fe of fyOrder) {
     const b = byFy.get(fe)!
     const y = String(fe).slice(0, 4)
@@ -121,38 +175,20 @@ function buildQuarterStandaloneRows(quarters: any[] | undefined) {
     const e = split(b, 'eps')
     for (const qn of [1, 2, 3, 4] as const) {
       const k = qn === 1 ? 'q1' : qn === 2 ? 'q2' : qn === 3 ? 'q3' : 'q4'
-      out.push({
+      const row = {
         key: fe + '-' + qn + 'Q-standalone',
         label: y + ' ' + qn + 'Q',
         sales: s[k],
         op: o[k],
         np: n[k],
         eps: e[k],
-      })
+        sortMs: fiscalQuarterEndMs(fe, qn),
+      }
+      if (quarterRowHasData(row, true)) out.push(row)
     }
   }
-  return out
-}
-
-function formatTableSales(v: number | null | undefined, isStandalone: boolean) {
-  if (isStandalone) {
-    return v != null && Number.isFinite(v) ? (v / 100000000).toFixed(1) + '億' : '-'
-  }
-  return v ? (v / 100000000).toFixed(1) + '億' : '-'
-}
-
-function formatTableOpNp(v: number | null | undefined, isStandalone: boolean) {
-  if (isStandalone) {
-    return v != null && Number.isFinite(v) ? (v / 100000000).toFixed(1) + '億' : '-'
-  }
-  return v ? (v / 100000000).toFixed(1) + '億' : '-'
-}
-
-function formatTableEps(v: number | null | undefined, isStandalone: boolean) {
-  if (isStandalone) {
-    return v != null && Number.isFinite(v) ? '¥' + v.toFixed(1) : '-'
-  }
-  return v ? '¥' + v.toFixed(1) : '-'
+  out.sort((a, b) => b.sortMs - a.sortMs)
+  return out.map(({ sortMs: _s, ...rest }) => rest)
 }
 
 const Tip = ({ active, payload, label }: any) => {
@@ -224,6 +260,13 @@ export default function StockPage() {
     finTableTab === 'quarter'
       ? buildQuarterStandaloneRows(data?.quarters)
       : (data?.quarters?.filter((q: any) => q.period === 'FY') ?? [])
+          .filter((q: any) => quarterRowHasData(q, false))
+          .sort((a: any, b: any) => {
+            const da = String(a.discDate || '')
+            const db = String(b.discDate || '')
+            if (da !== db) return db.localeCompare(da)
+            return String(b.fyEnd || '').localeCompare(String(a.fyEnd || ''))
+          })
 
   return (
     <div style={{ minHeight: '100vh', background: '#0D0F14', padding: '20px', fontFamily: 'system-ui, sans-serif', color: '#E8E4D9' }}>
