@@ -131,7 +131,7 @@ export default function Dashboard() {
         {/* ヘッダー */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
           <div>
-            <h1 style={{ fontFamily: 'var(--font-title-display)', fontSize: 28, margin: 0, color: '#E8E4D9', letterSpacing: '-0.5px', fontWeight: 400 }}>APEX Portfolio</h1>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, margin: 0, color: '#E8E4D9', letterSpacing: '-0.5px', fontWeight: 400 }}>APEX Portfolio</h1>
             <p style={{ fontSize: 11, color: '#6B7280', margin: '4px 0 0', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Private Wealth · Global Multi-Asset</p>
             <div style={{ width: 40, height: 2, background: 'linear-gradient(to right, #C49C48, transparent)', borderRadius: 1, marginTop: 8 }} />
           </div>
