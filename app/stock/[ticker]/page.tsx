@@ -10,6 +10,60 @@ const RANGE_LABELS: Record<Range, string> = { '1mo': '1M', '3mo': '3M', '6mo': '
 const fmt = (n: number) => n?.toLocaleString() ?? '-'
 const fmtB = (n: number) => n ? (n / 100000000).toFixed(1) + '億' : '-'
 
+const Q_PREF = ['3Q', '2Q', '1Q'] as const
+function qOrderNum(period: string) {
+  if (period === '1Q') return 1
+  if (period === '2Q') return 2
+  if (period === '3Q') return 3
+  return 0
+}
+
+/** 同一 fyEnd で 3Q→2Q→1Q の優先で1行選び、当四半期値と予想に対する累計進捗率を返す */
+function getQuarterProgress(
+  quarters: any[] | undefined,
+  forecasts: { sales: number; op: number; np: number; eps: number }
+) {
+  if (!quarters?.length) return null
+  const rows = quarters.filter((q: any) => ['1Q', '2Q', '3Q'].includes(q.period))
+  if (!rows.length) return null
+  const targetFy = rows[0].fyEnd
+  const same = rows.filter((q: any) => q.fyEnd === targetFy)
+  let picked: any = null
+  for (const p of Q_PREF) {
+    const hit = same.find((q: any) => q.period === p)
+    if (hit) {
+      picked = hit
+      break
+    }
+  }
+  if (!picked) return null
+  const through = qOrderNum(picked.period)
+  const cum = (key: 'sales' | 'op' | 'np' | 'eps') =>
+    same
+      .filter((q: any) => {
+        const n = qOrderNum(q.period)
+        return n > 0 && n <= through
+      })
+      .reduce((s: number, q: any) => s + (Number(q[key]) || 0), 0)
+  const pct = (actual: number, forecast: number) =>
+    forecast > 0 ? Math.round((actual / forecast) * 100) : null
+  return {
+    picked,
+    cumSales: cum('sales'),
+    cumOp: cum('op'),
+    cumNp: cum('np'),
+    cumEps: cum('eps'),
+    salesPct: pct(cum('sales'), forecasts.sales),
+    opPct: pct(cum('op'), forecasts.op),
+    npPct: pct(cum('np'), forecasts.np),
+    epsPct: pct(cum('eps'), forecasts.eps),
+  }
+}
+
+function quarterProgressColor(pct: number | null) {
+  return pct != null && pct >= 75 ? '#4ADE80' : '#C49C48'
+}
+
 const Tip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null
   return (
@@ -71,6 +125,9 @@ export default function StockPage() {
   }, [ticker, range])
 
   const isUp = data ? data.changePct >= 0 : true
+  const finQp = data
+    ? getQuarterProgress(data.quarters, { sales: data.sales, op: data.op, np: data.np, eps: data.eps })
+    : null
 
   return (
     <div style={{ minHeight: '100vh', background: '#0D0F14', padding: '20px', fontFamily: 'system-ui, sans-serif', color: '#E8E4D9' }}>
@@ -153,10 +210,50 @@ export default function StockPage() {
             <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 16 }}>
               <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12, letterSpacing: '1px', textTransform: 'uppercase' }}>財務情報</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10 }}>
-                <Card label="売上高（予想）" value={fmtB(data.sales)} />
-                <Card label="営業利益（予想）" value={fmtB(data.op)} gold />
-                <Card label="純利益（予想）" value={fmtB(data.np)} />
-                <Card label="EPS（予想）" value={'¥' + (data.eps?.toFixed(1) ?? '-')} gold />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>売上高（予想）</div>
+                    <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#E8E4D9' }}>{fmtB(data.sales)}</div>
+                  </div>
+                  {finQp && (
+                    <div style={{ fontSize: 10, color: quarterProgressColor(finQp.salesPct), paddingLeft: 2, lineHeight: 1.35 }}>
+                      {finQp.picked.period} {fmtB(finQp.picked.sales)}{finQp.salesPct != null ? ` (${finQp.salesPct}%)` : ''}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ background: 'rgba(196,156,72,0.06)', border: '0.5px solid rgba(196,156,72,0.25)', borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>営業利益（予想）</div>
+                    <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#C49C48' }}>{fmtB(data.op)}</div>
+                  </div>
+                  {finQp && (
+                    <div style={{ fontSize: 10, color: quarterProgressColor(finQp.opPct), paddingLeft: 2, lineHeight: 1.35 }}>
+                      {finQp.picked.period} {fmtB(finQp.picked.op)}{finQp.opPct != null ? ` (${finQp.opPct}%)` : ''}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>純利益（予想）</div>
+                    <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#E8E4D9' }}>{fmtB(data.np)}</div>
+                  </div>
+                  {finQp && (
+                    <div style={{ fontSize: 10, color: quarterProgressColor(finQp.npPct), paddingLeft: 2, lineHeight: 1.35 }}>
+                      {finQp.picked.period} {fmtB(finQp.picked.np)}{finQp.npPct != null ? ` (${finQp.npPct}%)` : ''}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ background: 'rgba(196,156,72,0.06)', border: '0.5px solid rgba(196,156,72,0.25)', borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>EPS（予想）</div>
+                    <div style={{ fontSize: 18, fontFamily: 'Georgia, serif', color: '#C49C48' }}>{'¥' + (data.eps?.toFixed(1) ?? '-')}</div>
+                  </div>
+                  {finQp && (
+                    <div style={{ fontSize: 10, color: quarterProgressColor(finQp.epsPct), paddingLeft: 2, lineHeight: 1.35 }}>
+                      {finQp.picked.period} {finQp.picked.eps ? '¥' + finQp.picked.eps.toFixed(1) : '-'}{finQp.epsPct != null ? ` (${finQp.epsPct}%)` : ''}
+                    </div>
+                  )}
+                </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
                 <Card label="PER" value={data.per > 0 ? data.per + 'x' : '-'} sub="株価÷予想EPS" />
