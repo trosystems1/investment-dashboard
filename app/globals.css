@@ -4,7 +4,10 @@
 }
 
 *, *::before, *::after {
-  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
 }
