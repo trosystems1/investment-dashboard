@@ -165,6 +165,38 @@ export default function StockPage() {
               </div>
             </div>
 
+            {data.quarters && data.quarters.length > 0 && (
+              <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 16 }}>
+                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12, letterSpacing: '1px', textTransform: 'uppercase' }}>四半期業績推移</div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '0.5px solid rgba(255,255,255,0.1)' }}>
+                        <th style={{ textAlign: 'left', padding: '6px 8px', color: '#6B7280', fontWeight: 400 }}>期</th>
+                        <th style={{ textAlign: 'right', padding: '6px 8px', color: '#6B7280', fontWeight: 400 }}>売上高</th>
+                        <th style={{ textAlign: 'right', padding: '6px 8px', color: '#6B7280', fontWeight: 400 }}>営業利益</th>
+                        <th style={{ textAlign: 'right', padding: '6px 8px', color: '#6B7280', fontWeight: 400 }}>純利益</th>
+                        <th style={{ textAlign: 'right', padding: '6px 8px', color: '#6B7280', fontWeight: 400 }}>EPS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.quarters.map((q: any, i: number) => (
+                        <tr key={i} style={{ borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '8px 8px', color: '#C49C48', fontWeight: 500 }}>
+                            {q.fyEnd ? q.fyEnd.slice(0, 4) + ' ' : ''}{q.period}
+                          </td>
+                          <td style={{ textAlign: 'right', padding: '8px 8px', color: '#E8E4D9' }}>{q.sales ? (q.sales / 100000000).toFixed(1) + '億' : '-'}</td>
+                          <td style={{ textAlign: 'right', padding: '8px 8px', color: q.op >= 0 ? '#4ADE80' : '#F87171' }}>{q.op ? (q.op / 100000000).toFixed(1) + '億' : '-'}</td>
+                          <td style={{ textAlign: 'right', padding: '8px 8px', color: q.np >= 0 ? '#4ADE80' : '#F87171' }}>{q.np ? (q.np / 100000000).toFixed(1) + '億' : '-'}</td>
+                          <td style={{ textAlign: 'right', padding: '8px 8px', color: '#E8E4D9' }}>{q.eps ? '¥' + q.eps.toFixed(1) : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {data.nenkin && (
               <div style={{ background: 'rgba(99,102,241,0.04)', border: '0.5px solid rgba(99,102,241,0.2)', borderRadius: 12, padding: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>

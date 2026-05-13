@@ -53,8 +53,8 @@ export async function GET(req: NextRequest) {
 
     const quotes = chartJson.data || []
     const year1Quotes = year1Json.data || []
-    const finData = (finJson.data || []).sort((a: any, b: any) => b.DiscDate.localeCompare(a.DiscDate))
-    const latestFin = finData[0] || {}
+    const allFinData = (finJson.data || []).sort((a: any, b: any) => b.DiscDate.localeCompare(a.DiscDate))
+    const latestFin = allFinData[0] || {}
 
     const latest = quotes[quotes.length - 1]
     const prev = quotes.length > 1 ? quotes[quotes.length - 2] : latest
@@ -71,6 +71,20 @@ export async function GET(req: NextRequest) {
     const ta = parseFloat(latestFin.TA || "0")
     const eq = parseFloat(latestFin.Eq || "0")
     const per = eps > 0 ? parseFloat((price / eps).toFixed(1)) : 0
+
+    // 四半期データ（直近2期分のQ1〜FYを取得）
+    const quarters = allFinData
+      .filter((d: any) => ['1Q', '2Q', '3Q', 'FY'].includes(d.CurPerType))
+      .slice(0, 8)
+      .map((d: any) => ({
+        period: d.CurPerType,
+        discDate: d.DiscDate,
+        fyEnd: d.CurFYEn,
+        sales: parseFloat(d.Sales || "0"),
+        op: parseFloat(d.OP || "0"),
+        np: parseFloat(d.NP || "0"),
+        eps: parseFloat(d.EPS || "0"),
+      }))
 
     // 社員数データ取得
     let nenkinData = null
@@ -113,6 +127,7 @@ export async function GET(req: NextRequest) {
       open: latest?.O, high: latest?.H, low: latest?.L, volume: latest?.Vo,
       high52, low52, waterLevel, history,
       sales, op, np, eps, ta, eq, per,
+      quarters,
       finPeriod: latestFin.CurPerType || "",
       finDate: latestFin.DiscDate || "",
       nenkin: nenkinData,
