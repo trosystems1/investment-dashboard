@@ -1,36 +1,10 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 :root {
   --font-body: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif;
-  --font-title-display: 'DM Serif Display', serif;
+  --font-display: 'DM Serif Display', serif;
 }
 
-body {
-  margin: 0;
-  padding: 0;
-  background: #0D0F14;
+*, *::before, *::after {
   font-family: var(--font-body);
-}
-
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-family: var(--font-body);
-  font-weight: 600;
-}
-
-button,
-input,
-textarea,
-select {
-  font-family: inherit;
-}
-
-* {
-  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
