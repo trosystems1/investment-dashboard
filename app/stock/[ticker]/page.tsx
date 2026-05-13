@@ -7,6 +7,7 @@ const RANGES = ['1mo', '3mo', '6mo', '1y'] as const
 type Range = typeof RANGES[number]
 const RANGE_LABELS: Record<Range, string> = { '1mo': '1M', '3mo': '3M', '6mo': '6M', '1y': '1Y' }
 
+
 const fmt = (n: number) => n?.toLocaleString() ?? '-'
 const fmtB = (n: number) => n ? (n / 100000000).toFixed(1) + '億' : '-'
 
@@ -288,7 +289,7 @@ export default function StockPage() {
           })
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0D0F14', padding: '20px', fontFamily: FONT_BODY, color: '#E8E4D9' }}>
+    <div style={{ minHeight: '100vh', background: '#0D0F14', padding: '20px', fontFamily: 'var(--font-body)', color: '#E8E4D9' }}>
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
