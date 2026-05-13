@@ -21,7 +21,7 @@ export default function KpiCard({ label, value, badge, badgeUp, isGold }: KpiCar
       <div style={{ fontSize: 11, color: '#6B7280', letterSpacing: '1.2px', textTransform: 'uppercase', marginBottom: 8 }}>
         {label}
       </div>
-      <div style={{ fontFamily: 'DM Serif Display, serif', fontSize: 24, color: isGold ? '#C49C48' : '#E8E4D9', lineHeight: 1 }}>
+      <div style={{ fontFamily: 'var(--font-body)', fontSize: 24, color: isGold ? '#C49C48' : '#E8E4D9', lineHeight: 1 }}>
         {value}
       </div>
       {badge && (

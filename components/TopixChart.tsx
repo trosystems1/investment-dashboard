@@ -121,7 +121,7 @@ export default function TopixChart() {
           {/* 現在値 */}
           {latest && (
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-              <span style={{ fontSize: 20, fontFamily: 'Georgia, serif', color: '#E8E4D9' }}>{latest.c.toFixed(2)}</span>
+              <span style={{ fontSize: 20, fontFamily: 'var(--font-body)', color: '#E8E4D9' }}>{latest.c.toFixed(2)}</span>
               {change && (
                 <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 8,
                   background: isUp ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)',

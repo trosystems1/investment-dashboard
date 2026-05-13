@@ -13,11 +13,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Serif+Display&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body style={{ background: '#0D0F14', margin: 0 }}>
+      <body style={{ background: '#0D0F14', margin: 0, fontFamily: 'var(--font-body)' }}>
         {children}
       </body>
     </html>
