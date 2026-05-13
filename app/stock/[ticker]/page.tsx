@@ -10,7 +10,7 @@ const RANGE_LABELS: Record<Range, string> = { '1mo': '1M', '3mo': '3M', '6mo': '
 const fmt = (n: number) => n?.toLocaleString() ?? '-'
 const fmtB = (n: number) => n ? (n / 100000000).toFixed(1) + '億' : '-'
 
-const FONT_SANS = "'Inter', 'Noto Sans JP', sans-serif" as const
+const FONT_SANS = "'Plus Jakarta Sans', 'Noto Sans JP', sans-serif" as const
 
 const finForecastValueStyle = (color: string) => ({ fontSize: 18, fontFamily: FONT_SANS, color })
 const finForecastFootStyle = (color: string) => ({
