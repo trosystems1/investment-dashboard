@@ -64,6 +64,97 @@ function quarterProgressColor(pct: number | null) {
   return pct != null && pct >= 75 ? '#4ADE80' : '#C49C48'
 }
 
+/** 累計ベースの四半期データから、年度ごとに 1Q〜4Q の単独値行を生成（開示が新しい順で年度を並べる） */
+function buildQuarterStandaloneRows(quarters: any[] | undefined) {
+  if (!quarters?.length) return [] as { key: string; label: string; sales: number | null; op: number | null; np: number | null; eps: number | null }[]
+
+  const byFy = new Map<string, { q1?: any; q2?: any; q3?: any; fy?: any }>()
+  for (const q of quarters) {
+    if (!q.fyEnd || !['1Q', '2Q', '3Q', 'FY'].includes(q.period)) continue
+    let b = byFy.get(q.fyEnd)
+    if (!b) {
+      b = {}
+      byFy.set(q.fyEnd, b)
+    }
+    if (q.period === '1Q' && !b.q1) b.q1 = q
+    else if (q.period === '2Q' && !b.q2) b.q2 = q
+    else if (q.period === '3Q' && !b.q3) b.q3 = q
+    else if (q.period === 'FY' && !b.fy) b.fy = q
+  }
+
+  const fyOrder: string[] = []
+  const seen = new Set<string>()
+  for (const q of quarters) {
+    if (!q.fyEnd || seen.has(q.fyEnd)) continue
+    const b = byFy.get(q.fyEnd)
+    if (!b || !(b.q1 || b.q2 || b.q3 || b.fy)) continue
+    seen.add(q.fyEnd)
+    fyOrder.push(q.fyEnd)
+  }
+
+  const cum = (row: any, key: string) => {
+    if (row == null || row[key] == null || row[key] === '') return NaN
+    const n = Number(row[key])
+    return Number.isFinite(n) ? n : NaN
+  }
+
+  const split = (b: { q1?: any; q2?: any; q3?: any; fy?: any }, key: 'sales' | 'op' | 'np' | 'eps') => {
+    const c1 = cum(b.q1, key)
+    const c2 = cum(b.q2, key)
+    const c3 = cum(b.q3, key)
+    const cf = cum(b.fy, key)
+    return {
+      q1: Number.isFinite(c1) ? c1 : null,
+      q2: Number.isFinite(c1) && Number.isFinite(c2) ? c2 - c1 : null,
+      q3: Number.isFinite(c2) && Number.isFinite(c3) ? c3 - c2 : null,
+      q4: Number.isFinite(c3) && Number.isFinite(cf) ? cf - c3 : null,
+    }
+  }
+
+  const out: { key: string; label: string; sales: number | null; op: number | null; np: number | null; eps: number | null }[] = []
+  for (const fe of fyOrder) {
+    const b = byFy.get(fe)!
+    const y = String(fe).slice(0, 4)
+    const s = split(b, 'sales')
+    const o = split(b, 'op')
+    const n = split(b, 'np')
+    const e = split(b, 'eps')
+    for (const qn of [1, 2, 3, 4] as const) {
+      const k = qn === 1 ? 'q1' : qn === 2 ? 'q2' : qn === 3 ? 'q3' : 'q4'
+      out.push({
+        key: fe + '-' + qn + 'Q-standalone',
+        label: y + ' ' + qn + 'Q',
+        sales: s[k],
+        op: o[k],
+        np: n[k],
+        eps: e[k],
+      })
+    }
+  }
+  return out
+}
+
+function formatTableSales(v: number | null | undefined, isStandalone: boolean) {
+  if (isStandalone) {
+    return v != null && Number.isFinite(v) ? (v / 100000000).toFixed(1) + '億' : '-'
+  }
+  return v ? (v / 100000000).toFixed(1) + '億' : '-'
+}
+
+function formatTableOpNp(v: number | null | undefined, isStandalone: boolean) {
+  if (isStandalone) {
+    return v != null && Number.isFinite(v) ? (v / 100000000).toFixed(1) + '億' : '-'
+  }
+  return v ? (v / 100000000).toFixed(1) + '億' : '-'
+}
+
+function formatTableEps(v: number | null | undefined, isStandalone: boolean) {
+  if (isStandalone) {
+    return v != null && Number.isFinite(v) ? '¥' + v.toFixed(1) : '-'
+  }
+  return v ? '¥' + v.toFixed(1) : '-'
+}
+
 const Tip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null
   return (
@@ -130,9 +221,9 @@ export default function StockPage() {
     ? getQuarterProgress(data.quarters, { sales: data.sales, op: data.op, np: data.np, eps: data.eps })
     : null
   const quarterTableRows =
-    data?.quarters?.filter((q: any) =>
-      finTableTab === 'quarter' ? ['1Q', '2Q', '3Q'].includes(q.period) : q.period === 'FY'
-    ) ?? []
+    finTableTab === 'quarter'
+      ? buildQuarterStandaloneRows(data?.quarters)
+      : (data?.quarters?.filter((q: any) => q.period === 'FY') ?? [])
 
   return (
     <div style={{ minHeight: '100vh', background: '#0D0F14', padding: '20px', fontFamily: 'system-ui, sans-serif', color: '#E8E4D9' }}>
@@ -297,17 +388,30 @@ export default function StockPage() {
                           <td colSpan={5} style={{ padding: '16px 8px', color: '#6B7280', textAlign: 'center' }}>該当するデータがありません</td>
                         </tr>
                       ) : (
-                        quarterTableRows.map((q: any, i: number) => (
-                          <tr key={(q.fyEnd || '') + '-' + q.period + '-' + (q.discDate || i)} style={{ borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}>
-                            <td style={{ padding: '8px 8px', color: '#C49C48', fontWeight: 500 }}>
-                              {q.fyEnd ? q.fyEnd.slice(0, 4) + ' ' : ''}{q.period}
-                            </td>
-                            <td style={{ textAlign: 'right', padding: '8px 8px', color: '#E8E4D9' }}>{q.sales ? (q.sales / 100000000).toFixed(1) + '億' : '-'}</td>
-                            <td style={{ textAlign: 'right', padding: '8px 8px', color: q.op >= 0 ? '#4ADE80' : '#F87171' }}>{q.op ? (q.op / 100000000).toFixed(1) + '億' : '-'}</td>
-                            <td style={{ textAlign: 'right', padding: '8px 8px', color: q.np >= 0 ? '#4ADE80' : '#F87171' }}>{q.np ? (q.np / 100000000).toFixed(1) + '億' : '-'}</td>
-                            <td style={{ textAlign: 'right', padding: '8px 8px', color: '#E8E4D9' }}>{q.eps ? '¥' + q.eps.toFixed(1) : '-'}</td>
-                          </tr>
-                        ))
+                        quarterTableRows.map((q: any, i: number) => {
+                          const standalone = finTableTab === 'quarter'
+                          const label = standalone ? q.label : (q.fyEnd ? q.fyEnd.slice(0, 4) + ' ' : '') + q.period
+                          const key = standalone ? q.key : (q.fyEnd || '') + '-' + q.period + '-' + (q.discDate || i)
+                          const salesV = standalone ? q.sales : q.sales
+                          const opV = standalone ? q.op : q.op
+                          const npV = standalone ? q.np : q.np
+                          const epsV = standalone ? q.eps : q.eps
+                          const opColor = standalone
+                            ? (opV == null ? '#6B7280' : opV >= 0 ? '#4ADE80' : '#F87171')
+                            : (q.op >= 0 ? '#4ADE80' : '#F87171')
+                          const npColor = standalone
+                            ? (npV == null ? '#6B7280' : npV >= 0 ? '#4ADE80' : '#F87171')
+                            : (q.np >= 0 ? '#4ADE80' : '#F87171')
+                          return (
+                            <tr key={key} style={{ borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}>
+                              <td style={{ padding: '8px 8px', color: '#C49C48', fontWeight: 500 }}>{label}</td>
+                              <td style={{ textAlign: 'right', padding: '8px 8px', color: '#E8E4D9' }}>{formatTableSales(salesV, standalone)}</td>
+                              <td style={{ textAlign: 'right', padding: '8px 8px', color: opColor }}>{formatTableOpNp(opV, standalone)}</td>
+                              <td style={{ textAlign: 'right', padding: '8px 8px', color: npColor }}>{formatTableOpNp(npV, standalone)}</td>
+                              <td style={{ textAlign: 'right', padding: '8px 8px', color: '#E8E4D9' }}>{formatTableEps(epsV, standalone)}</td>
+                            </tr>
+                          )
+                        })
                       )}
                     </tbody>
                   </table>
