@@ -95,26 +95,27 @@ function quarterRowHasData(row: any, standalone: boolean) {
   )
 }
 
-function parseFyEndDate(fe: string): Date {
+function parseFyEndUtcParts(fe: string): { y: number; m0: number; d: number } | null {
   const s = String(fe).trim()
   if (/^\d{8}$/.test(s)) {
-    return new Date(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8))
+    return { y: +s.slice(0, 4), m0: +s.slice(4, 6) - 1, d: +s.slice(6, 8) }
   }
-  const t = Date.parse(s)
-  if (!Number.isNaN(t)) return new Date(t)
-  return new Date(NaN)
+  const p = Date.parse(s)
+  if (Number.isNaN(p)) return null
+  const u = new Date(p)
+  return { y: u.getUTCFullYear(), m0: u.getUTCMonth(), d: u.getUTCDate() }
 }
 
-/** 3月決算の会計年度想定で、各四半期の終了日時刻（並び替え用） */
+/** 3月決算の会計年度想定で、各四半期の終了日時刻（UTCミリ秒・並び替え用） */
 function fiscalQuarterEndMs(fyEnd: string, qn: 1 | 2 | 3 | 4): number {
-  const end = parseFyEndDate(fyEnd)
-  const t = end.getTime()
-  if (Number.isNaN(t)) return 0
-  const Y = end.getFullYear()
-  if (qn === 4) return t
-  if (qn === 3) return new Date(Y - 1, 11, 31, 23, 59, 59, 999).getTime()
-  if (qn === 2) return new Date(Y - 1, 8, 30, 23, 59, 59, 999).getTime()
-  return new Date(Y - 1, 5, 30, 23, 59, 59, 999).getTime()
+  const parts = parseFyEndUtcParts(fyEnd)
+  if (!parts) return 0
+  const { y, m0, d } = parts
+  const fyY = y
+  if (qn === 4) return Date.UTC(y, m0, d, 23, 59, 59, 999)
+  if (qn === 3) return Date.UTC(fyY - 1, 11, 31, 23, 59, 59, 999)
+  if (qn === 2) return Date.UTC(fyY - 1, 8, 30, 23, 59, 59, 999)
+  return Date.UTC(fyY - 1, 5, 30, 23, 59, 59, 999)
 }
 
 /** 累計ベースの四半期データから 1Q〜4Q の単独行を生成し、四半期終了が新しい順に並べる */
