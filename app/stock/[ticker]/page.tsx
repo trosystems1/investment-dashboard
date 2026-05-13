@@ -95,33 +95,29 @@ function quarterRowHasData(row: any, standalone: boolean) {
   )
 }
 
-function parseFyEndUtcParts(fe: string): { y: number; m0: number; d: number } | null {
-  const s = String(fe).trim()
-  if (/^\d{8}$/.test(s)) {
-    return { y: +s.slice(0, 4), m0: +s.slice(4, 6) - 1, d: +s.slice(6, 8) }
-  }
-  const p = Date.parse(s)
-  if (Number.isNaN(p)) return null
-  const u = new Date(p)
-  return { y: u.getUTCFullYear(), m0: u.getUTCMonth(), d: u.getUTCDate() }
+/** 年度降順 → 四半期降順（4Q > 3Q > 2Q > 1Q） */
+function compareQuarterRowsDec(a: { yearLabel: string; quarterLabel: string }, b: { yearLabel: string; quarterLabel: string }) {
+  const ya = +a.yearLabel
+  const yb = +b.yearLabel
+  if (yb !== ya) return yb - ya
+  const qa = parseInt(a.quarterLabel, 10) || 0
+  const qb = parseInt(b.quarterLabel, 10) || 0
+  return qb - qa
 }
 
-/** 3月決算の会計年度想定で、各四半期の終了日時刻（UTCミリ秒・並び替え用） */
-function fiscalQuarterEndMs(fyEnd: string, qn: 1 | 2 | 3 | 4): number {
-  const parts = parseFyEndUtcParts(fyEnd)
-  if (!parts) return 0
-  const { y, m0, d } = parts
-  const fyY = y
-  if (qn === 4) return Date.UTC(y, m0, d, 23, 59, 59, 999)
-  if (qn === 3) return Date.UTC(fyY - 1, 11, 31, 23, 59, 59, 999)
-  if (qn === 2) return Date.UTC(fyY - 1, 8, 30, 23, 59, 59, 999)
-  return Date.UTC(fyY - 1, 5, 30, 23, 59, 59, 999)
-}
-
-/** 累計ベースの四半期データから 1Q〜4Q の単独行を生成し、四半期終了が新しい順に並べる */
+/** 累計ベースの四半期データから 1Q〜4Q の単独行を生成（yearLabel・quarterLabel で降順ソート） */
 function buildQuarterStandaloneRows(quarters: any[] | undefined) {
   if (!quarters?.length)
-    return [] as { key: string; label: string; sales: number | null; op: number | null; np: number | null; eps: number | null }[]
+    return [] as {
+      key: string
+      label: string
+      yearLabel: string
+      quarterLabel: string
+      sales: number | null
+      op: number | null
+      np: number | null
+      eps: number | null
+    }[]
 
   const byFy = new Map<string, { q1?: any; q2?: any; q3?: any; fy?: any }>()
   for (const q of quarters) {
@@ -166,30 +162,41 @@ function buildQuarterStandaloneRows(quarters: any[] | undefined) {
     }
   }
 
-  const out: { key: string; label: string; sales: number | null; op: number | null; np: number | null; eps: number | null; sortMs: number }[] = []
+  const out: {
+    key: string
+    label: string
+    yearLabel: string
+    quarterLabel: string
+    sales: number | null
+    op: number | null
+    np: number | null
+    eps: number | null
+  }[] = []
   for (const fe of fyOrder) {
     const b = byFy.get(fe)!
-    const y = String(fe).slice(0, 4)
+    const yearLabel = String(fe).slice(0, 4)
     const s = split(b, 'sales')
     const o = split(b, 'op')
     const n = split(b, 'np')
     const e = split(b, 'eps')
     for (const qn of [1, 2, 3, 4] as const) {
       const k = qn === 1 ? 'q1' : qn === 2 ? 'q2' : qn === 3 ? 'q3' : 'q4'
+      const quarterLabel = qn + 'Q'
       const row = {
         key: fe + '-' + qn + 'Q-standalone',
-        label: y + ' ' + qn + 'Q',
+        label: yearLabel + ' ' + quarterLabel,
+        yearLabel,
+        quarterLabel,
         sales: s[k],
         op: o[k],
         np: n[k],
         eps: e[k],
-        sortMs: fiscalQuarterEndMs(fe, qn),
       }
       if (quarterRowHasData(row, true)) out.push(row)
     }
   }
-  out.sort((a, b) => b.sortMs - a.sortMs)
-  return out.map(({ sortMs: _s, ...rest }) => rest)
+  out.sort(compareQuarterRowsDec)
+  return out
 }
 
 const Tip = ({ active, payload, label }: any) => {
