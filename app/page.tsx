@@ -6,6 +6,7 @@ import StockTable from '@/components/StockTable'
 import InvestorTypesChart from '@/components/InvestorTypesChart'
 import TopixChart from '@/components/TopixChart'
 import NenkinRanking from '@/components/NenkinRanking'
+import PerRanking from '@/components/PerRanking'
 
 interface StockData {
   symbol: string; name: string; price: number
@@ -232,9 +233,10 @@ export default function Dashboard() {
           })}
         </div>
 
-      <div style={{ marginTop: 20 }}>
-        <NenkinRanking />
-      </div>
+        <div style={{ marginTop: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+  <NenkinRanking />
+  <PerRanking />
+</div>
 
       </div>
     </div>
