@@ -6,7 +6,7 @@ const CODE_MAP: Record<string, { name: string; ticker: string }> = {
   '47760': { name: 'Cybozu',        ticker: '4776.T' },
   '48110': { name: 'Dream Arts',    ticker: '4811.T' },
   '43740': { name: 'ROBOT PAYMENT', ticker: '4374.T' },
-  '431A0': { name: 'Ysona',         ticker: '431A.T' },
+  '431A0': { name: 'uSonar',         ticker: '431A.T' },
   '44430': { name: 'Sansan',        ticker: '4443.T' },
   '44780': { name: 'freee',         ticker: '4478.T' },
   '39940': { name: 'MoneyForward',  ticker: '3994.T' },
