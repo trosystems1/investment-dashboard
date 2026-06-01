@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSession, signOut } from 'next-auth/react'
 import KpiCard from '@/components/KpiCard'
 import StockTable from '@/components/StockTable'
 import InvestorTypesChart from '@/components/InvestorTypesChart'
@@ -49,6 +50,7 @@ function normalizeCode(raw: string) {
 }
 
 export default function Dashboard() {
+  const { data: session } = useSession()
   const [entries, setEntries] = useState<StockEntry[]>(DEFAULT_STOCKS)
   const [prices, setPrices] = useState<StockData[]>([])
   const [loading, setLoading] = useState(true)
@@ -147,6 +149,31 @@ export default function Dashboard() {
             <div style={{ background: 'rgba(196,156,72,0.08)', border: '0.5px solid rgba(196,156,72,0.2)', padding: '6px 14px', borderRadius: 20, fontSize: 12, color: '#C49C48' }}>
               {new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
             </div>
+            {session?.user && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {session.user.image && (
+                  <img
+                    src={session.user.image}
+                    alt="avatar"
+                    style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(196,156,72,0.3)' }}
+                  />
+                )}
+                <button
+                  onClick={() => signOut({ callbackUrl: '/login' })}
+                  style={{
+                    fontSize: 11,
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'transparent',
+                    color: '#6B7280',
+                  }}
+                >
+                  サインアウト
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
