@@ -50,23 +50,41 @@ export async function GET() {
     const grouped: Record<number, any> = {}
     for (const pos of positions) {
       const uic = pos.PositionBase.Uic
+      const amount = pos.PositionBase.Amount
+      const openPrice = pos.PositionBase.OpenPrice
+      const pnl = pos.PositionView.ProfitLossOnTrade ?? 0
+      const pnlIntraday = pos.PositionView.ProfitLossOnTradeIntraday ?? 0
+      const convRate = pos.PositionView.ConversionRateOpen ?? 1
+
       if (!grouped[uic]) {
         grouped[uic] = {
           uic,
           name: instrMap[uic] || `UIC:${uic}`,
           amount: 0,
+          totalCost: 0,
           pnl: 0,
           pnlIntraday: 0,
+          pnlJpy: 0,
           currency: pos.PositionView.ExposureCurrency,
           assetType: pos.PositionBase.AssetType,
+          convRate,
         }
       }
-      grouped[uic].amount += pos.PositionBase.Amount
-      grouped[uic].pnl += pos.PositionView.ProfitLossOnTrade ?? 0
-      grouped[uic].pnlIntraday += pos.PositionView.ProfitLossOnTradeIntraday ?? 0
+      grouped[uic].amount += amount
+      grouped[uic].totalCost += openPrice * amount
+      grouped[uic].pnl += pnl
+      grouped[uic].pnlIntraday += pnlIntraday
+      grouped[uic].pnlJpy += pnl * convRate
     }
 
-    const data = Object.values(grouped).sort((a: any, b: any) => b.pnl - a.pnl)
+    const data = Object.values(grouped)
+      .map((pos: any) => ({
+        ...pos,
+        avgOpenPrice: pos.amount !== 0 ? pos.totalCost / pos.amount : 0,
+        pnlPct: pos.totalCost > 0 ? (pos.pnl / pos.totalCost) * 100 : 0,
+        totalValueJpy: (pos.totalCost + pos.pnl) * pos.convRate,
+      }))
+      .sort((a: any, b: any) => b.pnl - a.pnl)
 
     return NextResponse.json({ data, total: data.length })
   } catch (e: any) {

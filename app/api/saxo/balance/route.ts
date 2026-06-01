@@ -58,6 +58,13 @@ export async function GET() {
     )
     const balance = await balanceRes.json()
 
+    const fxRes = await fetch(
+      'https://gateway.saxobank.com/openapi/trade/v1/infoprices/list?AssetType=FxSpot&Uics=22&FieldGroups=Quote',
+      { headers: { Authorization: `Bearer ${tokenData.accessToken}` } }
+    )
+    const fxJson = await fxRes.json()
+    const usdJpy = fxJson.Data?.[0]?.Quote?.Mid ?? 150
+
     return NextResponse.json({
       accountId: account.AccountId,
       currency: balance.Currency,
@@ -65,6 +72,9 @@ export async function GET() {
       totalValue: balance.TotalValue,
       unrealizedPnL: balance.UnrealizedPositionsValue,
       marginUsed: balance.MarginUsedByCurrentPositions ?? 0,
+      usdJpy,
+      totalValueJpy: Math.round(balance.TotalValue * usdJpy),
+      unrealizedPnLJpy: Math.round((balance.UnrealizedPositionsValue ?? 0) * usdJpy),
     })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })

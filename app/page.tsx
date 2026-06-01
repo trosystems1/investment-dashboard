@@ -215,7 +215,11 @@ export default function Dashboard() {
               <div style={{ fontSize: 22, color: '#C49C48', fontWeight: 700 }}>
                 ${saxoBalance.totalValue?.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </div>
-              <div style={{ fontSize: 11, color: '#4B5563', marginTop: 2 }}>{saxoBalance.currency}</div>
+              {saxoBalance.totalValueJpy && (
+                <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                  ≈ ¥{saxoBalance.totalValueJpy?.toLocaleString('ja-JP')}
+                </div>
+              )}
             </div>
             <div>
               <div style={{ fontSize: 10, color: '#4B5563', marginBottom: 4, letterSpacing: '0.05em' }}>現金残高</div>
@@ -228,6 +232,11 @@ export default function Dashboard() {
               <div style={{ fontSize: 22, fontWeight: 700, color: saxoBalance.unrealizedPnL >= 0 ? '#4ADE80' : '#F87171' }}>
                 {saxoBalance.unrealizedPnL >= 0 ? '+' : ''}${saxoBalance.unrealizedPnL?.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </div>
+              {saxoBalance.unrealizedPnLJpy != null && (
+                <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                  ≈ {saxoBalance.unrealizedPnLJpy >= 0 ? '+' : ''}¥{saxoBalance.unrealizedPnLJpy?.toLocaleString('ja-JP')}
+                </div>
+              )}
             </div>
             <div>
               <div style={{ fontSize: 10, color: '#4B5563', marginBottom: 4, letterSpacing: '0.05em' }}>口座</div>
