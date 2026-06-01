@@ -8,6 +8,7 @@ import InvestorTypesChart from '@/components/InvestorTypesChart'
 import TopixChart from '@/components/TopixChart'
 import NenkinRanking from '@/components/NenkinRanking'
 import PerRanking from '@/components/PerRanking'
+import SaxoPositions from '@/components/SaxoPositions'
 
 interface StockData {
   symbol: string; name: string; price: number
@@ -235,6 +236,8 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+
+        <SaxoPositions />
 
         {/* TOPIX */}
         <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 20, marginBottom: 16 }}>
