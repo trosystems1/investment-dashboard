@@ -10,19 +10,28 @@ type Section = typeof SECTIONS[number]
 
 const SECTION_LABELS: Record<Section, string> = {
   TokyoNagoya: '全体',
-  TSEPrime: 'プライム',
+  TSEPrime:    'プライム',
   TSEStandard: 'スタンダード',
-  TSEGrowth: 'グロース',
+  TSEGrowth:   'グロース',
 }
 
-const CATEGORIES = [
-  { key: 'frgn',    label: '海外',   color: '#C49C48' },
-  { key: 'ind',     label: '個人',   color: '#60A5FA' },
-  { key: 'invTr',   label: '投信',   color: '#A78BFA' },
+const INVESTORS = [
+  { key: 'frgn',    label: '海外',    color: '#C49C48' },
+  { key: 'ind',     label: '個人',    color: '#60A5FA' },
+  { key: 'invTr',   label: '投信',    color: '#A78BFA' },
   { key: 'trstBnk', label: '信託銀行', color: '#34D399' },
   { key: 'busCo',   label: '事業法人', color: '#FB923C' },
   { key: 'insCo',   label: '生保損保', color: '#F472B6' },
 ] as const
+
+type InvestorKey = typeof INVESTORS[number]['key']
+type DisplayMode = 'Bal' | 'Buy' | 'Sell'
+
+const MODE_LABELS: Record<DisplayMode, string> = {
+  Bal:  '差引',
+  Buy:  '買い',
+  Sell: '売り',
+}
 
 const fmtY = (v: number) => {
   const abs = Math.abs(v)
@@ -38,7 +47,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     <div style={{ background: 'rgba(13,15,20,0.97)', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 14px', fontSize: 12, minWidth: 160 }}>
       <div style={{ color: '#6B7280', marginBottom: 8 }}>{label}</div>
       {payload
-        .filter((p: any) => p.value !== 0)
+        .filter((p: any) => p.value !== 0 && p.value != null)
         .sort((a: any, b: any) => Math.abs(b.value) - Math.abs(a.value))
         .map((p: any) => (
           <div key={p.dataKey} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginBottom: 3 }}>
@@ -52,10 +61,23 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   )
 }
 
+const btn = (active: boolean, color?: string) => ({
+  fontSize: 11,
+  padding: '4px 10px',
+  borderRadius: 6,
+  cursor: 'pointer' as const,
+  border: 'none',
+  borderBottom: color ? `2px solid ${active ? color : 'transparent'}` : undefined,
+  background: active ? 'rgba(196,156,72,0.15)' : 'transparent',
+  color: active ? (color ?? '#C49C48') : '#6B7280',
+})
+
 export default function InvestorTypesChart() {
-  const [section, setSection] = useState<Section>('TokyoNagoya')
-  const [data, setData] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [section,  setSection]  = useState<Section>('TokyoNagoya')
+  const [investor, setInvestor] = useState<InvestorKey | 'all'>('all')
+  const [mode,     setMode]     = useState<DisplayMode>('Bal')
+  const [data,     setData]     = useState<any[]>([])
+  const [loading,  setLoading]  = useState(true)
 
   useEffect(() => {
     setLoading(true)
@@ -72,21 +94,52 @@ export default function InvestorTypesChart() {
       .catch(() => setLoading(false))
   }, [section])
 
+  const visibleInvestors = investor === 'all'
+    ? INVESTORS
+    : INVESTORS.filter(i => i.key === investor)
+
+  // 差引モードのみ積み上げ
+  const stackId = mode === 'Bal' ? 'a' : undefined
+
+  const subtitle = mode === 'Bal'
+    ? '週次集計・買い越し↑ / 売り越し↓'
+    : mode === 'Buy' ? '週次買い金額'
+    : '週次売り金額'
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      {/* 1行目：タイトル + 市場フィルタ */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
         <div>
           <div style={{ fontSize: 14, color: '#B8B4A8', fontWeight: 500 }}>投資部門別売買動向</div>
-          <div style={{ fontSize: 11, color: '#4B5563', marginTop: 2 }}>週次集計・買い越し↑ / 売り越し↓</div>
+          <div style={{ fontSize: 11, color: '#4B5563', marginTop: 2 }}>{subtitle}</div>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
           {SECTIONS.map(s => (
-            <button key={s} onClick={() => setSection(s)} style={{
-              fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', border: 'none',
-              background: section === s ? 'rgba(196,156,72,0.15)' : 'transparent',
-              color: section === s ? '#C49C48' : '#6B7280',
-            }}>
+            <button key={s} onClick={() => setSection(s)} style={btn(section === s)}>
               {SECTION_LABELS[s]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 2行目：投資家フィルタ + 表示モード */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          <button onClick={() => setInvestor('all')} style={btn(investor === 'all')}>
+            全投資家
+          </button>
+          {INVESTORS.map(inv => (
+            <button key={inv.key} onClick={() => setInvestor(inv.key)}
+              style={btn(investor === inv.key, inv.color)}>
+              {inv.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {(Object.keys(MODE_LABELS) as DisplayMode[]).map(m => (
+            <button key={m} onClick={() => setMode(m)} style={btn(mode === m)}>
+              {MODE_LABELS[m]}
             </button>
           ))}
         </div>
@@ -117,8 +170,16 @@ export default function InvestorTypesChart() {
               iconSize={8}
               wrapperStyle={{ fontSize: 11, color: '#6B7280', paddingTop: 8 }}
             />
-            {CATEGORIES.map(({ key, label, color }) => (
-              <Bar key={key} dataKey={key} name={label} stackId="a" fill={color} opacity={0.85} radius={0} />
+            {visibleInvestors.map(({ key, label, color }) => (
+              <Bar
+                key={`${key}${mode}`}
+                dataKey={`${key}${mode}`}
+                name={label}
+                stackId={stackId}
+                fill={color}
+                opacity={0.85}
+                radius={0}
+              />
             ))}
           </ComposedChart>
         </ResponsiveContainer>
