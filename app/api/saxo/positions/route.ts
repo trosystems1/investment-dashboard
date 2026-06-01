@@ -34,12 +34,16 @@ export async function GET() {
     const instrMap: Record<number, string> = {}
     if (uics.length > 0) {
       const instrRes = await fetch(
-        `https://gateway.saxobank.com/openapi/ref/v1/instruments?Uics=${uics.join(',')}&AssetTypes=Stock&FieldGroups=SummaryType`,
+        `https://gateway.saxobank.com/openapi/ref/v1/instruments?Uics=${uics.join(',')}&AssetTypes=Stock`,
         { headers }
       )
       const instrJson = await instrRes.json()
+
+      console.log('instruments response:', JSON.stringify(instrJson).slice(0, 500))
+
       for (const instr of instrJson.Data || []) {
-        instrMap[instr.Identifier] = instr.Description
+        instrMap[instr.Identifier] =
+          instr.Description || instr.Symbol || instr.Name || `UIC:${instr.Identifier}`
       }
     }
 
