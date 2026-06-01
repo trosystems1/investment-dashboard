@@ -25,8 +25,9 @@ export async function GET(req: NextRequest) {
 
     const today = new Date()
     const from = new Date(today)
-    from.setDate(from.getDate() - 180)
+    from.setDate(from.getDate() - 90)
     const fromStr = from.toISOString().split('T')[0].replace(/-/g, '')
+    const toStr = today.toISOString().split('T')[0].replace(/-/g, '')
 
     const target = new Date(today)
     target.setDate(target.getDate() - 1)
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
     let paginationKey: string | undefined = undefined
     let page = 0
     do {
-      const params = new URLSearchParams({ date: fromStr })
+      const params = new URLSearchParams({ from: fromStr, to: toStr })
       if (paginationKey) params.set('pagination_key', paginationKey)
       const finRes = await fetch(
         `https://api.jquants.com/v2/fins/summary?${params}`,
@@ -125,6 +126,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       count: screenerData.length,
+      primeCount: primeStocks.length,
+      finCount: Object.keys(finMap).length,
+      priceCount: Object.keys(priceMap).length,
       executedAt: new Date().toISOString(),
     })
   } catch (e: any) {
