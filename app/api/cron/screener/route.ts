@@ -6,6 +6,15 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN!,
 })
 
+async function fetchWithRetry(url: string, headers: Record<string, string>, retries = 3): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    const res = await fetch(url, { headers })
+    if (res.status !== 429) return res
+    await new Promise(r => setTimeout(r, 1000 * (i + 1)))
+  }
+  throw new Error('Rate limit exceeded after retries')
+}
+
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -15,9 +24,10 @@ export async function GET(req: NextRequest) {
   const apiKey = process.env.JQUANTS_API_KEY!
 
   try {
-    const masterRes = await fetch('https://api.jquants.com/v2/equities/master', {
-      headers: { 'x-api-key': apiKey },
-    })
+    const masterRes = await fetchWithRetry(
+      'https://api.jquants.com/v2/equities/master',
+      { 'x-api-key': apiKey }
+    )
     const masterJson = await masterRes.json()
     const primeStocks = (masterJson.data || []).filter(
       (s: any) => s.Mkt === '0111'
@@ -44,7 +54,7 @@ export async function GET(req: NextRequest) {
     do {
       const url: string = `https://api.jquants.com/v2/fins/summary?from=${fromStr}&to=${toStr}${paginationKey ? `&pagination_key=${paginationKey}` : ''}`
       console.log('fins/summary URL:', url)
-      const finRes = await fetch(url, { headers: { 'x-api-key': apiKey } })
+      const finRes = await fetchWithRetry(url, { 'x-api-key': apiKey })
       const finJson = await finRes.json()
       console.log('fins/summary response keys:', Object.keys(finJson), 'data length:', finJson.data?.length)
       for (const r of finJson.data || []) {
