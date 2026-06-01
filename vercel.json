@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/screener",
       "schedule": "0 18 * * 1-5"
+    },
+    {
+      "path": "/api/cron/signal-check",
+      "schedule": "0 9 * * 1-5"
     }
   ]
 }
