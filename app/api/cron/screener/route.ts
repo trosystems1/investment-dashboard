@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     })
     const masterJson = await masterRes.json()
     const primeStocks = (masterJson.data || []).filter(
-      (s: any) => s.MarketCode === '0111'
+      (s: any) => s.Mkt === '0111'
     )
 
     const today = new Date()
@@ -105,8 +105,8 @@ export async function GET(req: NextRequest) {
         return {
           code: code.slice(0, 4),
           code5: code,
-          name: s.CompanyName,
-          sector: s.Sector33CodeName,
+          name: s.CoName,
+          sector: s.S33Nm,
           price,
           pbr: pbr ? Math.round(pbr * 100) / 100 : null,
           per: per ? Math.round(per * 100) / 100 : null,
