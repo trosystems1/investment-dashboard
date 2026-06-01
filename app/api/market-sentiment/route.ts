@@ -5,7 +5,6 @@ let cachedToken: { value: string; expiry: number } | null = null
 async function getApiKey(): Promise<string> {
   if (process.env.JQUANTS_API_KEY) return process.env.JQUANTS_API_KEY
   if (cachedToken && cachedToken.expiry > Date.now()) return cachedToken.value
-
   const email = process.env.JQUANTS_EMAIL!
   const password = process.env.JQUANTS_PASSWORD!
   const refreshRes = await fetch('https://api.jquants.com/v1/token/auth_user', {
@@ -22,8 +21,7 @@ async function getApiKey(): Promise<string> {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const section = searchParams.get('section') || 'TSEGrowth'
-
+  const section = searchParams.get('section') || 'TokyoNagoya'
   const from = new Date()
   from.setDate(from.getDate() - 182)
   const fromStr = from.toISOString().split('T')[0].replace(/-/g, '')
@@ -42,15 +40,30 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => a.PubDate.localeCompare(b.PubDate))
       .slice(-26)
       .map((r) => ({
-        pubDate: r.PubDate,
-        stDate: r.StDate,
-        enDate: r.EnDate,
-        ind: r.IndBal,
-        frgn: r.FrgnBal,
-        invTr: r.InvTrBal,
-        trstBnk: r.TrstBnkBal,
-        busCo: r.BusCoBal,
-        insCo: r.InsCobal ?? r.InsCoBal ?? 0,
+        pubDate:     r.PubDate,
+        stDate:      r.StDate,
+        enDate:      r.EnDate,
+        // 差引
+        frgnBal:     r.FrgnBal,
+        indBal:      r.IndBal,
+        invTrBal:    r.InvTrBal,
+        trstBnkBal:  r.TrstBnkBal,
+        busCoBal:    r.BusCoBal,
+        insCoBal:    r.InsCoBal,
+        // 買い
+        frgnBuy:     r.FrgnBuy,
+        indBuy:      r.IndBuy,
+        invTrBuy:    r.InvTrBuy,
+        trstBnkBuy:  r.TrstBnkBuy,
+        busCoBuy:    r.BusCoBuy,
+        insCoBuy:    r.InsCoBuy,
+        // 売り（負値で返して棒グラフを下向きに）
+        frgnSell:    -(r.FrgnSell ?? 0),
+        indSell:     -(r.IndSell ?? 0),
+        invTrSell:   -(r.InvTrSell ?? 0),
+        trstBnkSell: -(r.TrstBnkSell ?? 0),
+        busCoSell:   -(r.BusCoSell ?? 0),
+        insCoSell:   -(r.InsCoSell ?? 0),
       }))
 
     return NextResponse.json({ data, section })
