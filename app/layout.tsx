@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import AuthSessionProvider from '@/components/SessionProvider'
 
 export const metadata: Metadata = {
   title: 'APEX Investment Dashboard',
@@ -18,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body style={{ background: '#0D0F14', margin: 0, fontFamily: 'var(--font-body)' }}>
-        {children}
+        <AuthSessionProvider>{children}</AuthSessionProvider>
       </body>
     </html>
   )
