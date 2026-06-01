@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     let paginationKey: string | undefined = undefined
     let page = 0
     do {
-      const url = `https://api.jquants.com/v2/fins/summary?from=${fromStr}&to=${toStr}${paginationKey ? `&pagination_key=${paginationKey}` : ''}`
+      const url: string = `https://api.jquants.com/v2/fins/summary?from=${fromStr}&to=${toStr}${paginationKey ? `&pagination_key=${paginationKey}` : ''}`
       console.log('fins/summary URL:', url)
       const finRes = await fetch(url, { headers: { 'x-api-key': apiKey } })
       const finJson = await finRes.json()
