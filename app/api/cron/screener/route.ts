@@ -26,8 +26,8 @@ export async function GET(req: NextRequest) {
     const today = new Date()
     const from = new Date(today)
     from.setDate(from.getDate() - 90)
-    const fromStr = from.toISOString().split('T')[0].replace(/-/g, '')
-    const toStr = today.toISOString().split('T')[0].replace(/-/g, '')
+    const fromStr = from.toISOString().split('T')[0]
+    const toStr = today.toISOString().split('T')[0]
 
     const target = new Date(today)
     target.setDate(target.getDate() - 1)
@@ -42,13 +42,11 @@ export async function GET(req: NextRequest) {
     let paginationKey: string | undefined = undefined
     let page = 0
     do {
-      const params = new URLSearchParams({ from: fromStr, to: toStr })
-      if (paginationKey) params.set('pagination_key', paginationKey)
-      const finRes = await fetch(
-        `https://api.jquants.com/v2/fins/summary?${params}`,
-        { headers: { 'x-api-key': apiKey } }
-      )
+      const url = `https://api.jquants.com/v2/fins/summary?from=${fromStr}&to=${toStr}${paginationKey ? `&pagination_key=${paginationKey}` : ''}`
+      console.log('fins/summary URL:', url)
+      const finRes = await fetch(url, { headers: { 'x-api-key': apiKey } })
       const finJson = await finRes.json()
+      console.log('fins/summary response keys:', Object.keys(finJson), 'data length:', finJson.data?.length)
       for (const r of finJson.data || []) {
         const code = r.Code
         if (!finMap[code] || r.DiscDate > finMap[code].DiscDate) {
