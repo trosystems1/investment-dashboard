@@ -60,6 +60,16 @@ export default function Dashboard() {
   const [addName, setAddName] = useState('')
   const [addCat, setAddCat] = useState<'holding' | 'watch'>('watch')
   const [addError, setAddError] = useState('')
+  const [saxoBalance, setSaxoBalance] = useState<any>(null)
+
+  useEffect(() => {
+    fetch('/api/saxo/balance')
+      .then(r => r.json())
+      .then(data => {
+        if (!data.error) setSaxoBalance(data)
+      })
+      .catch(() => {})
+  }, [])
 
   // localStorage から読み込み
   useEffect(() => { setEntries(loadStocks()) }, [])
@@ -184,6 +194,47 @@ export default function Dashboard() {
           <KpiCard label="WL Avg Change" value={avgChange ? (parseFloat(avgChange) >= 0 ? '+' : '') + avgChange + '%' : '---'} badge="ウォッチリスト平均" badgeUp={!avgChange || parseFloat(avgChange) >= 0} />
           <KpiCard label="Sharpe Ratio" value="2.41" badge="リスク調整済" badgeUp />
         </div>
+
+        {/* SAXO 残高 */}
+        {saxoBalance && (
+          <div
+            style={{
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(196,156,72,0.15)',
+              borderRadius: 12,
+              padding: '16px 20px',
+              marginBottom: 24,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: 16,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 10, color: '#4B5563', marginBottom: 4, letterSpacing: '0.05em' }}>SAXO 総資産</div>
+              <div style={{ fontSize: 22, color: '#C49C48', fontWeight: 700 }}>
+                ${saxoBalance.totalValue?.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              </div>
+              <div style={{ fontSize: 11, color: '#4B5563', marginTop: 2 }}>{saxoBalance.currency}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#4B5563', marginBottom: 4, letterSpacing: '0.05em' }}>現金残高</div>
+              <div style={{ fontSize: 22, color: '#B8B4A8', fontWeight: 700 }}>
+                ${saxoBalance.cashBalance?.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#4B5563', marginBottom: 4, letterSpacing: '0.05em' }}>含み損益</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: saxoBalance.unrealizedPnL >= 0 ? '#4ADE80' : '#F87171' }}>
+                {saxoBalance.unrealizedPnL >= 0 ? '+' : ''}${saxoBalance.unrealizedPnL?.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#4B5563', marginBottom: 4, letterSpacing: '0.05em' }}>口座</div>
+              <div style={{ fontSize: 13, color: '#B8B4A8', fontWeight: 500, marginTop: 4 }}>{saxoBalance.accountId}</div>
+              <a href="/saxo-connect" style={{ fontSize: 10, color: '#4B5563', textDecoration: 'none' }}>再接続</a>
+            </div>
+          </div>
+        )}
 
         {/* TOPIX */}
         <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 20, marginBottom: 16 }}>
