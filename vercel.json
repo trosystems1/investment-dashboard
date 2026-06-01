@@ -3,6 +3,10 @@
     {
       "path": "/api/cron",
       "schedule": "0 8 * * 1-5"
+    },
+    {
+      "path": "/api/cron/screener",
+      "schedule": "0 18 * * 1-5"
     }
   ]
 }
