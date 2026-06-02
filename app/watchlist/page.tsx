@@ -14,33 +14,55 @@ type WatchlistItem = {
   history: HistoryEntry[];
 };
 
-const COMPANY_NAMES: Record<string, string> = {
-  '228A0': 'Appier',
-  '43970': 'チームスピリット',
-  '43740': 'ROBOT PAYMENT',
-  '431A0': 'uSonar',
-  '44430': 'Sansan',
-  '44780': 'freee',
-  '39940': 'MoneyForward',
-  '47760': 'Cybozu',
-  '40580': 'Toyokumo',
-  '48110': 'Dream Arts',
+type ListedInfo = {
+  companyName: string;
+  segment: string;
 };
 
-const resolveCompanyName = (item: WatchlistItem) =>
-  COMPANY_NAMES[item.ticker] ?? (item.companyName !== item.ticker ? item.companyName : '');
+const SEGMENT_COLORS: Record<string, { color: string; border: string; background: string }> = {
+  プライム: { color: 'rgba(196,156,72,0.85)', border: 'rgba(196,156,72,0.35)', background: 'rgba(196,156,72,0.08)' },
+  グロース: { color: 'rgba(180,200,220,0.75)', border: 'rgba(180,200,220,0.25)', background: 'rgba(180,200,220,0.06)' },
+  スタンダード: { color: 'rgba(232,224,208,0.55)', border: 'rgba(232,224,208,0.2)', background: 'rgba(232,224,208,0.04)' },
+};
+
+const segmentKey = (segment: string) => {
+  if (segment.startsWith('プライム')) return 'プライム';
+  if (segment.startsWith('グロース')) return 'グロース';
+  if (segment.startsWith('スタンダード')) return 'スタンダード';
+  return '';
+};
 
 export default function WatchlistPage() {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [listedInfo, setListedInfo] = useState<Record<string, ListedInfo>>({});
 
   useEffect(() => {
     fetch('/api/watchlist')
       .then(r => r.json())
       .then(d => {
-        setWatchlist(d.watchlist ?? []);
+        const list: WatchlistItem[] = d.watchlist ?? [];
+        setWatchlist(list);
         setLoading(false);
+
+        list.forEach(item => {
+          const code = item.ticker.replace(/0$/, '');
+          fetch(`/api/listed-info?code=${encodeURIComponent(code)}`)
+            .then(r => (r.ok ? r.json() : null))
+            .then(json => {
+              const first = json?.info?.[0];
+              if (!first) return;
+              setListedInfo(prev => ({
+                ...prev,
+                [item.ticker]: {
+                  companyName: first.CompanyNameRF || first.CompanyName || '',
+                  segment: first.MarketProductCategory || '',
+                },
+              }));
+            })
+            .catch(() => {});
+        });
       });
   }, []);
 
@@ -113,23 +135,47 @@ export default function WatchlistPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div>
                         {(() => {
-                          const name = resolveCompanyName(item);
-                          return name ? (
+                          const info = listedInfo[item.ticker];
+                          const name = info?.companyName;
+                          const segment = info?.segment ?? '';
+                          const seg = segment ? SEGMENT_COLORS[segmentKey(segment)] : null;
+                          return (
                             <>
-                              <span style={{ fontSize: 15, fontWeight: 600, color: '#e8e0d0' }}>
-                                {name}
-                              </span>
-                              <span style={{
-                                fontSize: 12, color: 'rgba(196,156,72,0.6)',
-                                marginLeft: 8, letterSpacing: '0.05em',
-                              }}>
-                                {item.ticker}
-                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                {name ? (
+                                  <>
+                                    <span style={{ fontSize: 15, fontWeight: 600, color: '#e8e0d0' }}>
+                                      {name}
+                                    </span>
+                                    <span style={{
+                                      fontSize: 12, color: 'rgba(196,156,72,0.6)',
+                                      letterSpacing: '0.05em',
+                                    }}>
+                                      {item.ticker}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span style={{ fontSize: 15, fontWeight: 600, color: '#e8e0d0', letterSpacing: '0.05em' }}>
+                                    {item.ticker}
+                                  </span>
+                                )}
+                              </div>
+                              {segment && seg && (
+                                <span style={{
+                                  display: 'inline-block',
+                                  marginTop: 4,
+                                  padding: '2px 8px',
+                                  fontSize: 10,
+                                  letterSpacing: '0.1em',
+                                  color: seg.color,
+                                  background: seg.background,
+                                  border: `0.5px solid ${seg.border}`,
+                                  borderRadius: 10,
+                                }}>
+                                  {segment}
+                                </span>
+                              )}
                             </>
-                          ) : (
-                            <span style={{ fontSize: 15, fontWeight: 600, color: '#e8e0d0', letterSpacing: '0.05em' }}>
-                              {item.ticker}
-                            </span>
                           );
                         })()}
                       </div>
