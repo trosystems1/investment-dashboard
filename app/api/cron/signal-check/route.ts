@@ -25,13 +25,19 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const [prompt, savedTickers] = await Promise.all([
-    redis.get<string>('signal:prompt'),
+  const [rules, savedTickers] = await Promise.all([
+    redis.get<string[]>('signal:rules'),
     redis.get<string[]>('signal:watchlist'),
   ]);
 
-  if (!prompt) {
-    return NextResponse.json({ skipped: 'No signal prompt configured' });
+  // 旧形式フォールバック
+  const prompt = !rules || rules.length === 0
+    ? await redis.get<string>('signal:prompt')
+    : null;
+  const activeRules = (rules && rules.length > 0) ? rules : (prompt ? [prompt] : []);
+
+  if (activeRules.length === 0) {
+    return NextResponse.json({ skipped: 'No signal rules configured' });
   }
 
   const tickers = (savedTickers && savedTickers.length > 0) ? savedTickers : DEFAULT_TICKERS;
@@ -45,16 +51,21 @@ export async function GET(req: Request) {
       date: b.date, close: b.close, volume: b.volume,
     }));
 
+    // 全ルールをまとめてClaudeに渡す（1銘柄1回のAPI呼び出し）
+    const rulesText = activeRules.map((r, i) => `${i + 1}. ${r}`).join('\n');
+
     const userMessage = `
 以下は ${ticker} の直近の株価データ（日次）です。
 ${JSON.stringify(recentBars, null, 2)}
 
-【シグナル検出ルール】
-${prompt}
+【シグナル検出ルール一覧】
+${rulesText}
 
-上記ルールに基づき判断してください。
-シグナルあり → SIGNAL: [シグナル名] - [理由1行]
-シグナルなし → NO_SIGNAL
+---
+上記の各ルールについて判断し、シグナルが発生しているものだけを以下の形式で列挙してください。
+SIGNAL: [ルール番号] [シグナル名] - [理由を1行で]
+
+シグナルが1件もない場合は NO_SIGNAL とだけ回答してください。
 `.trim();
 
     try {
@@ -67,15 +78,17 @@ ${prompt}
         },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 200,
+          max_tokens: 400,
           messages: [{ role: 'user', content: userMessage }],
         }),
       });
       const claudeData = await claudeRes.json();
       const text: string = claudeData.content?.[0]?.text ?? '';
+
       if (text.includes('SIGNAL:')) {
         const companyName = await redis.get<string>(`company:${ticker}`) ?? ticker;
-        signals.push(`📈 ${companyName}（${ticker}）\n${text.replace('SIGNAL:', '').trim()}`);
+        const signalLines = text.split('\n').filter(l => l.includes('SIGNAL:')).join('\n');
+        signals.push(`📈 ${companyName}（${ticker}）\n${signalLines.replace(/SIGNAL:/g, '').trim()}`);
       }
     } catch (e) {
       console.error(`Claude error for ${ticker}:`, e);
@@ -93,7 +106,14 @@ ${prompt}
     signalCount: signals.length,
     signals,
     tickerCount: tickers.length,
+    ruleCount: activeRules.length,
   });
 
-  return NextResponse.json({ success: true, signalCount: signals.length, signals, tickerCount: tickers.length });
+  return NextResponse.json({
+    success: true,
+    signalCount: signals.length,
+    signals,
+    tickerCount: tickers.length,
+    ruleCount: activeRules.length,
+  });
 }
