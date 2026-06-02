@@ -75,13 +75,14 @@ export default function ScreenerPage() {
 
   const cell = { padding: '8px 12px', fontSize: 12, borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#B8B4A8', whiteSpace: 'nowrap' as const }
   const hcell = { ...cell, color: '#C49C48', cursor: 'pointer', userSelect: 'none' as const, fontWeight: 600 }
-  const inp = { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#B8B4A8', padding: '4px 8px', fontSize: 12, width: 90 }
+  const inpBase = { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#B8B4A8', padding: '4px 8px', fontSize: 12 }
+  const inp = { ...inpBase, width: 90 }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0D0F14', padding: '24px' }}>
+    <div className="p-4 md:p-6" style={{ minHeight: '100vh', background: '#0D0F14' }}>
       <div style={{ maxWidth: 1400, margin: '0 auto' }}>
         <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 20, color: '#C49C48', fontWeight: 600, margin: 0 }}>
+          <h1 className="text-xl md:text-[20px]" style={{ color: '#C49C48', fontWeight: 600, margin: 0 }}>
             プライム全銘柄スクリーナー
           </h1>
           <p style={{ fontSize: 12, color: '#4B5563', marginTop: 4 }}>
@@ -89,12 +90,13 @@ export default function ScreenerPage() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-4">
           <input
             placeholder="銘柄名・コード検索"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ ...inp, width: 160 }}
+            className="w-full sm:w-40"
+            style={inpBase}
           />
           <label style={{ fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 6 }}>
             PBR上限 <input placeholder="例: 1.5" value={filters.pbrMax} onChange={e => setFilters(f => ({ ...f, pbrMax: e.target.value }))} style={inp} />

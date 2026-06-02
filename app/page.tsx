@@ -137,19 +137,19 @@ export default function Dashboard() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0D0F14', padding: '24px', fontFamily: 'var(--font-body)', color: '#E8E4D9' }}>
+    <div className="p-4 md:p-6" style={{ minHeight: '100vh', background: '#0D0F14', fontFamily: 'var(--font-body)', color: '#E8E4D9' }}>
       <div style={{ position: 'fixed', top: -200, right: -200, width: 500, height: 500, background: 'radial-gradient(circle, rgba(196,156,72,0.06) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
       <div style={{ position: 'fixed', bottom: -100, left: -100, width: 400, height: 400, background: 'radial-gradient(circle, rgba(59,130,246,0.06) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 1280, margin: '0 auto' }}>
 
         {/* ヘッダー */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
+        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-6 md:mb-7">
           <div>
-            <h1 style={{ fontFamily: 'var(--font-body)', fontSize: 28, margin: 0, color: '#E8E4D9', letterSpacing: '-0.5px', fontWeight: 600 }}>APEX Portfolio</h1>
+            <h1 className="text-2xl md:text-[28px]" style={{ fontFamily: 'var(--font-body)', margin: 0, color: '#E8E4D9', letterSpacing: '-0.5px', fontWeight: 600 }}>APEX Portfolio</h1>
             <p style={{ fontSize: 11, color: '#6B7280', margin: '4px 0 0', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Private Wealth · Global Multi-Asset</p>
             <div style={{ width: 40, height: 2, background: 'linear-gradient(to right, #C49C48, transparent)', borderRadius: 1, marginTop: 8 }} />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="flex items-center flex-wrap gap-2 md:gap-2.5">
             {lastUpdated && <span style={{ fontSize: 11, color: '#4B5563' }}>更新: {lastUpdated}</span>}
             <button onClick={() => { setLoading(true); fetchPrices(entries) }}
               style={{ background: 'rgba(196,156,72,0.1)', border: '0.5px solid rgba(196,156,72,0.3)', padding: '6px 14px', borderRadius: 20, fontSize: 12, color: '#C49C48', cursor: 'pointer' }}>↻ 更新</button>
@@ -191,7 +191,7 @@ export default function Dashboard() {
         </div>
 
         {/* KPI */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           <KpiCard label="Total Value" value="¥142.8M" badge="2.34% 前日比" badgeUp isGold />
           <KpiCard label="Day P&L" value="+¥3.26M" badge="本日損益" badgeUp />
           <KpiCard label="WL Avg Change" value={avgChange ? (parseFloat(avgChange) >= 0 ? '+' : '') + avgChange + '%' : '---'} badge="ウォッチリスト平均" badgeUp={!avgChange || parseFloat(avgChange) >= 0} />
@@ -201,15 +201,12 @@ export default function Dashboard() {
         {/* SAXO 残高 */}
         {saxoBalance && (
           <div
+            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6"
             style={{
               background: 'rgba(255,255,255,0.02)',
               border: '1px solid rgba(196,156,72,0.15)',
               borderRadius: 12,
               padding: '16px 20px',
-              marginBottom: 24,
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: 16,
             }}
           >
             <div>
@@ -261,7 +258,7 @@ export default function Dashboard() {
         </div>
 
         {/* 保有株 | ウォッチリスト */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {(['holding', 'watch'] as const).map(cat => {
             const label    = cat === 'holding' ? '保有株' : 'ウォッチリスト'
             const catList  = cat === 'holding' ? holdings : watchlist
@@ -325,10 +322,10 @@ export default function Dashboard() {
           })}
         </div>
 
-        <div style={{ marginTop: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-  <NenkinRanking />
-  <PerRanking />
-</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
+          <NenkinRanking />
+          <PerRanking />
+        </div>
 
       </div>
     </div>

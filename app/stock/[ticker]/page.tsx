@@ -289,14 +289,14 @@ export default function StockPage() {
           })
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0D0F14', padding: '20px', fontFamily: 'var(--font-body)', color: '#E8E4D9' }}>
+    <div className="p-4 md:p-5" style={{ minHeight: '100vh', background: '#0D0F14', fontFamily: 'var(--font-body)', color: '#E8E4D9' }}>
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+        <div className="flex flex-wrap items-center gap-3 md:gap-4 mb-6">
           <button onClick={() => router.push('/')} style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 14px', color: '#B8B4A8', cursor: 'pointer', fontSize: 13 }}>← Back</button>
           {!loading && data && (
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-              <h1 style={{ fontFamily: FONT_BODY, fontSize: 24, margin: 0, color: '#E8E4D9', letterSpacing: '-0.5px', fontWeight: 600 }}>{data.name}</h1>
+            <div className="flex flex-wrap items-baseline gap-2 md:gap-3 min-w-0">
+              <h1 className="text-xl md:text-2xl" style={{ fontFamily: FONT_BODY, margin: 0, color: '#E8E4D9', letterSpacing: '-0.5px', fontWeight: 600 }}>{data.name}</h1>
               <span style={{ fontSize: 13, color: '#6B7280' }}>{ticker}</span>
               {data.finPeriod && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 6, background: 'rgba(196,156,72,0.1)', color: '#C49C48' }}>{data.finPeriod} {data.finDate}</span>}
             </div>
@@ -308,21 +308,21 @@ export default function StockPage() {
         {!loading && data && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16 }}>
-              <div style={{ fontFamily: FONT_BODY, fontSize: 40, color: '#C49C48', lineHeight: 1 }}>¥{fmt(data.price)}</div>
+            <div className="flex flex-wrap items-end gap-3 md:gap-4">
+              <div className="text-3xl md:text-[40px]" style={{ fontFamily: FONT_BODY, color: '#C49C48', lineHeight: 1 }}>¥{fmt(data.price)}</div>
               <div style={{ fontSize: 15, padding: '4px 12px', borderRadius: 12, background: isUp ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)', color: isUp ? '#4ADE80' : '#F87171' }}>
                 {isUp ? '+' : ''}{fmt(data.change)} ({isUp ? '+' : ''}{data.changePct?.toFixed(2)}%)
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
               <Card label="始値" value={'¥' + fmt(data.open)} />
               <Card label="高値" value={'¥' + fmt(data.high)} gold />
               <Card label="安値" value={'¥' + fmt(data.low)} />
               <Card label="出来高" value={fmt(data.volume) + '株'} />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 16 }}>
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_80px] gap-4">
               <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <span style={{ fontSize: 13, color: '#B8B4A8' }}>株価チャート</span>
@@ -368,15 +368,10 @@ export default function StockPage() {
 
             <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 16 }}>
               <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12, letterSpacing: '1px', textTransform: 'uppercase' }}>財務情報</div>
-              <div style={{ overflowX: 'auto', marginBottom: 10, WebkitOverflowScrolling: 'touch' }}>
+              <div className="mb-2.5" style={{ WebkitOverflowScrolling: 'touch' }}>
                 <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))',
-                    gap: 10,
-                    width: '100%',
-                    minWidth: 0,
-                  }}
+                  className="grid grid-cols-2 md:grid-cols-4 gap-2.5"
+                  style={{ width: '100%', minWidth: 0 }}
                 >
                   <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 14px', minWidth: 0 }}>
                     <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>売上高（予想）</div>
@@ -419,7 +414,7 @@ export default function StockPage() {
                   </div>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
                 <Card label="PER" value={data.per > 0 ? data.per + 'x' : '-'} sub="株価÷予想EPS" />
                 <Card label="総資産" value={fmtB(data.ta)} />
                 <Card label="純資産" value={fmtB(data.eq)} />
@@ -501,7 +496,7 @@ export default function StockPage() {
                   <div style={{ fontSize: 12, color: '#818CF8', letterSpacing: '1px', textTransform: 'uppercase' }}>社会保険被保険者数</div>
                   <span style={{ fontSize: 10, color: '#6B7280' }}>出典：日本年金機構</span>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4">
                   <div style={{ background: 'rgba(99,102,241,0.08)', border: '0.5px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: '12px 14px' }}>
                     <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>直近被保険者数</div>
                     <div style={{ fontSize: 24, fontFamily: FONT_BODY, color: '#E8E4D9' }}>{fmt(data.nenkin.insuredCount)}<span style={{ fontSize: 12, marginLeft: 4 }}>人</span></div>

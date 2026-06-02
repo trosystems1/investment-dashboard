@@ -74,21 +74,23 @@ export default function WatchlistPage() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#0a0a0f',
-      color: '#e8e0d0',
-      fontFamily: 'var(--font-body)',
-      padding: '40px 24px',
-    }}>
+    <div
+      className="px-4 py-6 sm:px-6 sm:py-10"
+      style={{
+        minHeight: '100vh',
+        background: '#0a0a0f',
+        color: '#e8e0d0',
+        fontFamily: 'var(--font-body)',
+      }}
+    >
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
 
         {/* ヘッダー */}
-        <div style={{ marginBottom: 40 }}>
+        <div className="mb-7 md:mb-10">
           <p style={{ color: 'rgba(196,156,72,0.7)', fontSize: 12, letterSpacing: '0.15em', marginBottom: 8 }}>
             APEX DASHBOARD
           </p>
-          <h1 style={{ fontSize: 28, fontWeight: 600, color: '#e8e0d0', margin: 0 }}>
+          <h1 className="text-2xl md:text-[28px]" style={{ fontWeight: 600, color: '#e8e0d0', margin: 0 }}>
             ウォッチリスト
           </h1>
           <p style={{ color: 'rgba(232,224,208,0.5)', fontSize: 14, marginTop: 8 }}>
@@ -124,15 +126,10 @@ export default function WatchlistPage() {
                   {/* 銘柄ヘッダー */}
                   <div
                     onClick={() => setExpanded(isExpanded ? null : item.ticker)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '16px 20px',
-                      cursor: 'pointer',
-                    }}
+                    className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-4"
+                    style={{ cursor: 'pointer' }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div>
                         {(() => {
                           const info = listedInfo[item.ticker];
@@ -208,10 +205,10 @@ export default function WatchlistPage() {
 
                   {/* 履歴展開 */}
                   {isExpanded && (
-                    <div style={{
-                      borderTop: '1px solid rgba(255,255,255,0.06)',
-                      padding: '16px 20px',
-                    }}>
+                    <div
+                      className="px-4 py-4 sm:px-5"
+                      style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
+                    >
                       {item.history.length === 0 ? (
                         <p style={{ fontSize: 13, color: 'rgba(232,224,208,0.3)', margin: 0 }}>
                           まだ履歴がありません。次回のCron実行後に表示されます。
@@ -219,24 +216,23 @@ export default function WatchlistPage() {
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                           {item.history.map((entry, i) => (
-                            <div key={i} style={{
-                              display: 'flex',
-                              gap: 16,
-                              padding: '10px 14px',
-                              background: entry.signals.length > 0
-                                ? 'rgba(196,156,72,0.05)'
-                                : 'rgba(255,255,255,0.01)',
-                              border: `1px solid ${entry.signals.length > 0
-                                ? 'rgba(196,156,72,0.15)'
-                                : 'rgba(255,255,255,0.04)'}`,
-                              borderRadius: 8,
-                            }}>
-                              <div style={{
+                            <div key={i}
+                              className="flex flex-col sm:flex-row gap-1 sm:gap-4"
+                              style={{
+                                padding: '10px 14px',
+                                background: entry.signals.length > 0
+                                  ? 'rgba(196,156,72,0.05)'
+                                  : 'rgba(255,255,255,0.01)',
+                                border: `1px solid ${entry.signals.length > 0
+                                  ? 'rgba(196,156,72,0.15)'
+                                  : 'rgba(255,255,255,0.04)'}`,
+                                borderRadius: 8,
+                              }}>
+                              <div className="sm:min-w-[80px]" style={{
                                 fontSize: 12,
                                 color: 'rgba(232,224,208,0.4)',
                                 flexShrink: 0,
                                 paddingTop: 1,
-                                minWidth: 80,
                               }}>
                                 {entry.date}
                               </div>
@@ -270,7 +266,10 @@ export default function WatchlistPage() {
         )}
 
         {/* ナビゲーション */}
-        <div style={{ marginTop: 40, paddingTop: 24, borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 24 }}>
+        <div
+          className="flex flex-wrap gap-4 sm:gap-6 mt-10 pt-6"
+          style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
+        >
           <a href="/" style={{ color: 'rgba(196,156,72,0.7)', fontSize: 13, textDecoration: 'none' }}>
             ← ダッシュボードに戻る
           </a>

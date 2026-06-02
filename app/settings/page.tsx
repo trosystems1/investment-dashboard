@@ -101,9 +101,9 @@ export default function SettingsPage() {
     background: 'rgba(196,156,72,0.04)',
     border: '1px solid rgba(196,156,72,0.2)',
     borderRadius: 12,
-    padding: 24,
     marginBottom: 24,
   };
+  const cardClass = 'p-5 sm:p-6';
 
   const labelStyle: React.CSSProperties = {
     display: 'block',
@@ -126,21 +126,23 @@ export default function SettingsPage() {
   });
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#0a0a0f',
-      color: '#e8e0d0',
-      fontFamily: 'var(--font-body)',
-      padding: '40px 24px',
-    }}>
+    <div
+      className="px-4 py-6 sm:px-6 sm:py-10"
+      style={{
+        minHeight: '100vh',
+        background: '#0a0a0f',
+        color: '#e8e0d0',
+        fontFamily: 'var(--font-body)',
+      }}
+    >
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
 
         {/* ヘッダー */}
-        <div style={{ marginBottom: 40 }}>
+        <div className="mb-7 md:mb-10">
           <p style={{ color: 'rgba(196,156,72,0.7)', fontSize: 12, letterSpacing: '0.15em', marginBottom: 8 }}>
             APEX DASHBOARD
           </p>
-          <h1 style={{ fontSize: 28, fontWeight: 600, color: '#e8e0d0', margin: 0 }}>
+          <h1 className="text-2xl md:text-[28px]" style={{ fontWeight: 600, color: '#e8e0d0', margin: 0 }}>
             シグナル設定
           </h1>
           <p style={{ color: 'rgba(232,224,208,0.5)', fontSize: 14, marginTop: 8 }}>
@@ -149,7 +151,7 @@ export default function SettingsPage() {
         </div>
 
         {/* ウォッチリスト */}
-        <div style={cardStyle}>
+        <div className={cardClass} style={cardStyle}>
           <label style={labelStyle}>ウォッチリスト（銘柄コード）</label>
           <p style={{ fontSize: 12, color: 'rgba(232,224,208,0.4)', margin: '0 0 16px' }}>
             末尾の「0」は自動付加されます。例: 4443 → 44430
@@ -201,7 +203,7 @@ export default function SettingsPage() {
         </div>
 
         {/* シグナルルール */}
-        <div style={cardStyle}>
+        <div className={cardClass} style={cardStyle}>
           <label style={labelStyle}>シグナル検出ルール</label>
           <p style={{ fontSize: 12, color: 'rgba(232,224,208,0.4)', margin: '0 0 16px' }}>
             複数のルールを登録できます。全ルールを同時にチェックします。
@@ -245,7 +247,7 @@ export default function SettingsPage() {
               fontFamily: 'var(--font-body)', boxSizing: 'border-box',
             }}
           />
-          <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+          <div className="flex flex-wrap gap-3 mt-3">
             <button onClick={() => handleAddRule()} disabled={!newRule.trim()} style={btnPrimary(!newRule.trim())}>
               + ルールを追加
             </button>
@@ -256,9 +258,9 @@ export default function SettingsPage() {
         </div>
 
         {/* プリセット */}
-        <div style={{
+        <div className="p-5 sm:p-6" style={{
           background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)',
-          borderRadius: 12, padding: 24, marginBottom: 24,
+          borderRadius: 12, marginBottom: 24,
         }}>
           <p style={{ fontSize: 12, color: 'rgba(232,224,208,0.5)', letterSpacing: '0.1em', margin: '0 0 16px' }}>
             プリセット（クリックで追加）
@@ -288,9 +290,9 @@ export default function SettingsPage() {
 
         {/* 最終実行結果 */}
         {lastRun && (
-          <div style={{
+          <div className="p-5 sm:p-6" style={{
             background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)',
-            borderRadius: 12, padding: 24, marginBottom: 24,
+            borderRadius: 12, marginBottom: 24,
           }}>
             <p style={{ fontSize: 12, color: 'rgba(232,224,208,0.5)', letterSpacing: '0.1em', margin: '0 0 12px' }}>
               最終実行結果
