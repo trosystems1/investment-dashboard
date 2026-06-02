@@ -19,6 +19,17 @@ async function fetchBars(ticker: string, days: number = 30) {
   return (data.bars ?? []) as Array<{ date: string; close: number; volume: number }>;
 }
 
+async function fetchCompanyName(ticker: string): Promise<string | null> {
+  const apiKey = process.env.JQUANTS_API_KEY;
+  const res = await fetch(
+    `https://api.jquants.com/v2/listed/info?code=${ticker}`,
+    { headers: { 'x-api-key': apiKey! } }
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.info?.[0]?.CompanyName ?? null;
+}
+
 export async function GET(req: Request) {
   const auth = req.headers.get('authorization');
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -30,7 +41,6 @@ export async function GET(req: Request) {
     redis.get<string[]>('signal:watchlist'),
   ]);
 
-  // 旧形式フォールバック
   const prompt = !rules || rules.length === 0
     ? await redis.get<string>('signal:prompt')
     : null;
@@ -42,20 +52,32 @@ export async function GET(req: Request) {
 
   const tickers = (savedTickers && savedTickers.length > 0) ? savedTickers : DEFAULT_TICKERS;
   const signals: string[] = [];
+  const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
 
   for (const ticker of tickers) {
     const bars = await fetchBars(ticker, 30);
     if (!bars || bars.length < 5) continue;
 
+    // 会社名をキャッシュ（未登録なら取得して保存）
+    let companyName = await redis.get<string>(`company:${ticker}`);
+    if (!companyName) {
+      const fetched = await fetchCompanyName(ticker);
+      if (fetched) {
+        companyName = fetched;
+        await redis.set(`company:${ticker}`, fetched, { ex: 86400 * 30 });
+      } else {
+        companyName = ticker;
+      }
+    }
+
     const recentBars = bars.slice(-25).map(b => ({
       date: b.date, close: b.close, volume: b.volume,
     }));
 
-    // 全ルールをまとめてClaudeに渡す（1銘柄1回のAPI呼び出し）
     const rulesText = activeRules.map((r, i) => `${i + 1}. ${r}`).join('\n');
 
     const userMessage = `
-以下は ${ticker} の直近の株価データ（日次）です。
+以下は ${ticker}（${companyName}）の直近の株価データ（日次）です。
 ${JSON.stringify(recentBars, null, 2)}
 
 【シグナル検出ルール一覧】
@@ -85,10 +107,26 @@ SIGNAL: [ルール番号] [シグナル名] - [理由を1行で]
       const claudeData = await claudeRes.json();
       const text: string = claudeData.content?.[0]?.text ?? '';
 
-      if (text.includes('SIGNAL:')) {
-        const companyName = await redis.get<string>(`company:${ticker}`) ?? ticker;
-        const signalLines = text.split('\n').filter(l => l.includes('SIGNAL:')).join('\n');
-        signals.push(`📈 ${companyName}（${ticker}）\n${signalLines.replace(/SIGNAL:/g, '').trim()}`);
+      // 銘柄ごとの履歴をRedisに保存（最大30件）
+      const history = await redis.get<Array<{ date: string; signals: string[]; checkedAt: string }>>(`signal:history:${ticker}`) ?? [];
+      const detectedSignals = text.includes('SIGNAL:')
+        ? text.split('\n').filter(l => l.includes('SIGNAL:')).map(l => l.replace('SIGNAL:', '').trim())
+        : [];
+
+      // 同日のエントリは上書き
+      const existingIndex = history.findIndex(h => h.date === today);
+      const newEntry = { date: today, signals: detectedSignals, checkedAt: new Date().toISOString() };
+      if (existingIndex >= 0) {
+        history[existingIndex] = newEntry;
+      } else {
+        history.unshift(newEntry); // 新しい順
+      }
+      // 最大30件保持
+      const trimmed = history.slice(0, 30);
+      await redis.set(`signal:history:${ticker}`, trimmed);
+
+      if (detectedSignals.length > 0) {
+        signals.push(`📈 ${companyName}（${ticker}）\n${detectedSignals.join('\n')}`);
       }
     } catch (e) {
       console.error(`Claude error for ${ticker}:`, e);
@@ -96,8 +134,7 @@ SIGNAL: [ルール番号] [シグナル名] - [理由を1行で]
   }
 
   if (signals.length > 0) {
-    const now = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' });
-    const message = `🔔 株価シグナル検出 (${now})\n\n${signals.join('\n\n')}`;
+    const message = `🔔 株価シグナル検出 (${today})\n\n${signals.join('\n\n')}`;
     await sendLINE(message);
   }
 
