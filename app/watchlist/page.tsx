@@ -51,13 +51,13 @@ export default function WatchlistPage() {
           fetch(`/api/listed-info?code=${encodeURIComponent(code)}`)
             .then(r => (r.ok ? r.json() : null))
             .then(json => {
-              const first = json?.info?.[0];
+              const first = json?.data?.data?.[0];
               if (!first) return;
               setListedInfo(prev => ({
                 ...prev,
                 [item.ticker]: {
-                  companyName: first.CompanyNameRF || first.CompanyName || '',
-                  segment: first.MarketProductCategory || '',
+                  companyName: first.CoName || '',
+                  segment: first.MktNm || '',
                 },
               }));
             })

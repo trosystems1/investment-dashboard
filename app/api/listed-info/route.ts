@@ -14,8 +14,8 @@ export async function GET(request: Request) {
   const codeWithoutSuffix = code && code.endsWith('0') ? code.slice(0, -1) : code
 
   const url = codeWithoutSuffix
-    ? `https://api.jquants.com/v2/listed/info?code=${encodeURIComponent(codeWithoutSuffix)}`
-    : `https://api.jquants.com/v2/listed/info`
+    ? `https://api.jquants.com/v2/equities/master?code=${encodeURIComponent(codeWithoutSuffix)}`
+    : `https://api.jquants.com/v2/equities/master`
 
   const res = await fetch(url, {
     headers: { 'x-api-key': apiKey },
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
   if (!res.ok) {
     return NextResponse.json(
-      { error: 'Failed to fetch listed info', status: res.status, debug_key_prefix: apiKey.substring(0, 4) },
+      { error: 'Failed to fetch equities master', status: res.status, debug_key_prefix: apiKey.substring(0, 4) },
       { status: res.status },
     )
   }
