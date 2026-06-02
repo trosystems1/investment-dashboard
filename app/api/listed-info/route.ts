@@ -9,8 +9,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'JQUANTS_API_KEY is not configured' }, { status: 500 })
   }
 
-  const url = code
-    ? `https://api.jquants.com/v2/listed/info?code=${encodeURIComponent(code)}`
+  const codeWithoutSuffix = code && code.endsWith('0') ? code.slice(0, -1) : code
+
+  const url = codeWithoutSuffix
+    ? `https://api.jquants.com/v2/listed/info?code=${encodeURIComponent(codeWithoutSuffix)}`
     : `https://api.jquants.com/v2/listed/info`
 
   const res = await fetch(url, {
