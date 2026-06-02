@@ -66,7 +66,7 @@ export default function PerRanking() {
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 16, fontWeight: 600, color: '#C49C48' }}>
-                {item.per}x
+                {item.per}倍
               </div>
             </div>
           </div>
