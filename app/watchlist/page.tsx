@@ -14,6 +14,22 @@ type WatchlistItem = {
   history: HistoryEntry[];
 };
 
+const COMPANY_NAMES: Record<string, string> = {
+  '228A0': 'Appier',
+  '43970': 'チームスピリット',
+  '43740': 'ROBOT PAYMENT',
+  '431A0': 'uSonar',
+  '44430': 'Sansan',
+  '44780': 'freee',
+  '39940': 'MoneyForward',
+  '47760': 'Cybozu',
+  '40580': 'Toyokumo',
+  '48110': 'Dream Arts',
+};
+
+const resolveCompanyName = (item: WatchlistItem) =>
+  COMPANY_NAMES[item.ticker] ?? (item.companyName !== item.ticker ? item.companyName : '');
+
 export default function WatchlistPage() {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,15 +112,26 @@ export default function WatchlistPage() {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div>
-                        <span style={{ fontSize: 15, fontWeight: 600, color: '#e8e0d0' }}>
-                          {item.companyName}
-                        </span>
-                        <span style={{
-                          fontSize: 12, color: 'rgba(196,156,72,0.6)',
-                          marginLeft: 8, letterSpacing: '0.05em',
-                        }}>
-                          {item.ticker}
-                        </span>
+                        {(() => {
+                          const name = resolveCompanyName(item);
+                          return name ? (
+                            <>
+                              <span style={{ fontSize: 15, fontWeight: 600, color: '#e8e0d0' }}>
+                                {name}
+                              </span>
+                              <span style={{
+                                fontSize: 12, color: 'rgba(196,156,72,0.6)',
+                                marginLeft: 8, letterSpacing: '0.05em',
+                              }}>
+                                {item.ticker}
+                              </span>
+                            </>
+                          ) : (
+                            <span style={{ fontSize: 15, fontWeight: 600, color: '#e8e0d0', letterSpacing: '0.05em' }}>
+                              {item.ticker}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
 
