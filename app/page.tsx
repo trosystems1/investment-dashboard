@@ -153,6 +153,8 @@ export default function Dashboard() {
             {lastUpdated && <span style={{ fontSize: 11, color: '#4B5563' }}>更新: {lastUpdated}</span>}
             <button onClick={() => { setLoading(true); fetchPrices(entries) }}
               style={{ background: 'rgba(196,156,72,0.1)', border: '0.5px solid rgba(196,156,72,0.3)', padding: '6px 14px', borderRadius: 20, fontSize: 12, color: '#C49C48', cursor: 'pointer' }}>↻ 更新</button>
+            <a href="/watchlist" style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.1)', padding: '6px 14px', borderRadius: 20, fontSize: 12, color: '#B8B4A8', cursor: 'pointer', textDecoration: 'none' }}>📋 ウォッチリスト</a>
+            <a href="/settings" style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.1)', padding: '6px 14px', borderRadius: 20, fontSize: 12, color: '#B8B4A8', cursor: 'pointer', textDecoration: 'none' }}>⚙ シグナル設定</a>
             <button onClick={() => setEditing(v => !v)}
               style={{ background: editing ? 'rgba(196,156,72,0.15)' : 'rgba(255,255,255,0.04)', border: '0.5px solid ' + (editing ? 'rgba(196,156,72,0.4)' : 'rgba(255,255,255,0.1)'), padding: '6px 14px', borderRadius: 20, fontSize: 12, color: editing ? '#C49C48' : '#B8B4A8', cursor: 'pointer' }}>
               {editing ? '✓ 完了' : '✎ リスト編集'}
