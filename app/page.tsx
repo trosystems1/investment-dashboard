@@ -62,14 +62,20 @@ export default function Dashboard() {
   const [addCat, setAddCat] = useState<'holding' | 'watch'>('watch')
   const [addError, setAddError] = useState('')
   const [saxoBalance, setSaxoBalance] = useState<any>(null)
+  const [saxoStatus, setSaxoStatus] = useState<'unknown' | 'connected' | 'disconnected'>('unknown')
 
   useEffect(() => {
     fetch('/api/saxo/balance')
       .then(r => r.json())
       .then(data => {
-        if (!data.error) setSaxoBalance(data)
+        if (data?.error) {
+          setSaxoStatus('disconnected')
+        } else {
+          setSaxoBalance(data)
+          setSaxoStatus('connected')
+        }
       })
-      .catch(() => {})
+      .catch(() => setSaxoStatus('disconnected'))
   }, [])
 
   // localStorage から読み込み
@@ -197,6 +203,50 @@ export default function Dashboard() {
           <KpiCard label="WL Avg Change" value={avgChange ? (parseFloat(avgChange) >= 0 ? '+' : '') + avgChange + '%' : '---'} badge="ウォッチリスト平均" badgeUp={!avgChange || parseFloat(avgChange) >= 0} />
           <KpiCard label="Sharpe Ratio" value="2.41" badge="リスク調整済" badgeUp />
         </div>
+
+        {/* SAXO 未接続バナー */}
+        {saxoStatus === 'disconnected' && (
+          <a
+            href="/saxo-connect"
+            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 px-4 py-3 sm:px-5 sm:py-4"
+            style={{
+              background: 'linear-gradient(135deg, rgba(196,156,72,0.08), rgba(196,156,72,0.03))',
+              border: '1px solid rgba(196,156,72,0.3)',
+              borderRadius: 12,
+              color: '#C49C48',
+              textDecoration: 'none',
+            }}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 32, height: 32, borderRadius: '50%',
+                background: 'rgba(196,156,72,0.15)', border: '0.5px solid rgba(196,156,72,0.35)',
+                fontSize: 16, flexShrink: 0,
+              }}>⚠</span>
+              <div className="min-w-0">
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#C49C48' }}>サクソバンク未接続</div>
+                <div style={{ fontSize: 11, color: 'rgba(196,156,72,0.7)', marginTop: 2 }}>
+                  SAXO 残高・ポジション情報を表示するには接続が必要です
+                </div>
+              </div>
+            </div>
+            <span
+              className="self-start sm:self-auto"
+              style={{
+                fontSize: 12,
+                padding: '6px 14px',
+                borderRadius: 20,
+                background: 'rgba(196,156,72,0.15)',
+                border: '0.5px solid rgba(196,156,72,0.4)',
+                color: '#C49C48',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              接続する →
+            </span>
+          </a>
+        )}
 
         {/* SAXO 残高 */}
         {saxoBalance && (
