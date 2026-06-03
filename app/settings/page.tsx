@@ -15,10 +15,30 @@ const BUILTIN_NAMES: Record<string, string> = {
   '48110': 'ドリーム・アーツ',
 }
 
+const SIGNAL_PRESETS = [
+  { label: '出来高急増', description: '出来高が過去20日平均の3倍を超えており、かつ終値が前日比+2%以上の場合にシグナルを出す。' },
+  { label: 'ゴールデンクロス', description: '終値の25日移動平均を5日移動平均が下から上に突き抜けた場合にシグナルを出す。' },
+  { label: 'デッドクロス', description: '終値の25日移動平均を5日移動平均が上から下に突き抜けた場合にシグナルを出す。' },
+  { label: '5日連続上昇', description: '直近5日間の終値が連続して上昇しており、かつ出来高が増加傾向にある場合にシグナルを出す。' },
+  { label: '逆三尊', description: '直近25日間の価格データから逆三尊（インバース・ヘッドアンドショルダー）パターンを検出した場合にシグナルを出す。左肩・頭・右肩の形成とネックラインの突破を確認すること。' },
+  { label: 'ダブルボトム', description: '直近25日間で二つの底値が近い水準で形成され、その間の高値を終値が上回った場合にシグナルを出す。' },
+  { label: 'RSI過売り', description: '14日間のRSIが30を下回った場合にシグナルを出す。' },
+  { label: 'RSI過買い', description: '14日間のRSIが70を超えた場合にシグナルを出す。' },
+  { label: 'ボリンジャー下抜け', description: '終値が20日移動平均±2σのボリンジャーバンド下限を下回った場合にシグナルを出す。' },
+  { label: '移動平均乖離', description: '終値が25日移動平均から+10%以上乖離している場合にシグナルを出す。' },
+]
+
 interface SearchResult {
   code: string
   name: string
   market: string
+}
+
+interface LastRun {
+  timestamp: string
+  signalCount: number
+  signals: string[]
+  tickerCount?: number
 }
 
 export default function SettingsPage() {
@@ -29,7 +49,13 @@ export default function SettingsPage() {
   const [searching, setSearching] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+
   const [rules, setRules] = useState<string[]>([])
+  const [newRule, setNewRule] = useState('')
+  const [rulesSaving, setRulesSaving] = useState(false)
+  const [rulesSaved, setRulesSaved] = useState(false)
+  const [lastRun, setLastRun] = useState<LastRun | null>(null)
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -57,7 +83,11 @@ export default function SettingsPage() {
       })
     fetch('/api/settings/signal')
       .then((r) => r.json())
-      .then((d) => setRules(d.rules ?? []))
+      .then((d) => {
+        if (Array.isArray(d.rules)) setRules(d.rules)
+        else if (d.prompt) setRules([d.prompt])
+        if (d.lastRun) setLastRun(d.lastRun)
+      })
   }, [])
 
   useEffect(() => {
@@ -103,7 +133,37 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  const addRule = (text?: string) => {
+    const rule = (text ?? newRule).trim()
+    if (!rule || rules.includes(rule)) return
+    setRules((prev) => [...prev, rule])
+    setNewRule('')
+  }
+
   const removeRule = (i: number) => setRules((prev) => prev.filter((_, idx) => idx !== i))
+
+  const saveRules = async () => {
+    setRulesSaving(true)
+    await fetch('/api/settings/signal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rules }),
+    })
+    setRulesSaving(false)
+    setRulesSaved(true)
+    setTimeout(() => setRulesSaved(false), 2000)
+  }
+
+  const ruleBtn = (active: boolean, disabled = false): React.CSSProperties => ({
+    background: active ? 'rgba(72,196,100,0.2)' : 'rgba(196,156,72,0.15)',
+    border: `1px solid ${active ? 'rgba(72,196,100,0.5)' : 'rgba(196,156,72,0.4)'}`,
+    color: active ? '#48c464' : '#c49c48',
+    borderRadius: 4,
+    padding: '0.5rem 1.25rem',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.5 : 1,
+    fontSize: '0.9rem',
+  })
 
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e5e0d0', padding: '2rem' }}>
@@ -233,38 +293,136 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        <div style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 8, padding: '1.5rem' }}>
+        <div style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 8, padding: '1.5rem', marginBottom: '1.5rem' }}>
           <h2 style={{ color: '#c49c48', fontSize: '0.8rem', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>
             シグナル検出ルール
           </h2>
           <p style={{ color: '#666', fontSize: '0.8rem', marginBottom: '1rem' }}>
             複数のルールを登録できます。全ルールを同時にチェックします。
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {rules.map((rule, i) => (
+
+          {rules.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: '1rem' }}>
+              {rules.map((rule, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 12,
+                    background: '#1a1a1a',
+                    border: '1px solid #2a2a2a',
+                    borderRadius: 4,
+                    padding: '0.75rem 1rem',
+                  }}
+                >
+                  <span style={{ color: '#c49c48', fontSize: '0.8rem', minWidth: 20 }}>{i + 1}</span>
+                  <span style={{ flex: 1, fontSize: '0.9rem', lineHeight: 1.5 }}>{rule}</span>
+                  <button
+                    onClick={() => removeRule(i)}
+                    style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: 0 }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <textarea
+            value={newRule}
+            onChange={(e) => setNewRule(e.target.value)}
+            placeholder="新しいルールを入力..."
+            rows={3}
+            style={{
+              width: '100%',
+              background: '#1a1a1a',
+              border: '1px solid #333',
+              borderRadius: 4,
+              color: '#e5e0d0',
+              padding: '0.6rem 0.75rem',
+              fontSize: '0.9rem',
+              lineHeight: 1.6,
+              resize: 'vertical',
+              outline: 'none',
+              boxSizing: 'border-box',
+              marginBottom: '0.75rem',
+            }}
+          />
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            <button onClick={() => addRule()} disabled={!newRule.trim()} style={ruleBtn(false, !newRule.trim())}>
+              + ルールを追加
+            </button>
+            <button onClick={saveRules} disabled={rulesSaving || rules.length === 0} style={ruleBtn(rulesSaved, rulesSaving || rules.length === 0)}>
+              {rulesSaving ? '保存中...' : rulesSaved ? '✓ 保存しました' : `保存（${rules.length}件）`}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 8, padding: '1.5rem', marginBottom: '1.5rem' }}>
+          <h2 style={{ color: '#c49c48', fontSize: '0.8rem', letterSpacing: '0.1em', marginBottom: '1rem' }}>
+            おすすめルール（クリックで追加）
+          </h2>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {SIGNAL_PRESETS.map((preset, i) => {
+              const already = rules.includes(preset.description)
+              return (
+                <button
+                  key={i}
+                  onClick={() => !already && addRule(preset.description)}
+                  title={preset.description}
+                  style={{
+                    background: already ? 'rgba(196,156,72,0.15)' : '#1a1a1a',
+                    border: `1px solid ${already ? 'rgba(196,156,72,0.4)' : '#333'}`,
+                    borderRadius: 4,
+                    padding: '0.4rem 0.8rem',
+                    color: already ? '#c49c48' : '#999',
+                    fontSize: '0.8rem',
+                    cursor: already ? 'default' : 'pointer',
+                  }}
+                >
+                  {already ? '✓ ' : '+ '}{preset.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {lastRun && (
+          <div style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 8, padding: '1.5rem', marginBottom: '1.5rem' }}>
+            <h2 style={{ color: '#c49c48', fontSize: '0.8rem', letterSpacing: '0.1em', marginBottom: '0.75rem' }}>
+              最終実行結果
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: '#888', margin: '0 0 0.5rem' }}>
+              {new Date(lastRun.timestamp).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}
+              {lastRun.tickerCount ? `　${lastRun.tickerCount}銘柄チェック` : ''}
+              　{lastRun.signalCount > 0 ? `🔔 ${lastRun.signalCount}件検出` : '✓ シグナルなし'}
+            </p>
+            {lastRun.signals.map((s, i) => (
               <div
                 key={i}
                 style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 12,
                   background: '#1a1a1a',
                   border: '1px solid #2a2a2a',
                   borderRadius: 4,
-                  padding: '0.75rem 1rem',
+                  padding: '0.5rem 0.75rem',
+                  fontSize: '0.85rem',
+                  color: '#ccc',
+                  marginTop: 8,
+                  whiteSpace: 'pre-wrap',
                 }}
               >
-                <span style={{ color: '#c49c48', fontSize: '0.8rem', minWidth: 20 }}>{i + 1}</span>
-                <span style={{ flex: 1, fontSize: '0.9rem', lineHeight: 1.5 }}>{rule}</span>
-                <button
-                  onClick={() => removeRule(i)}
-                  style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: 0 }}
-                >
-                  ×
-                </button>
+                {s}
               </div>
             ))}
           </div>
+        )}
+
+        <div style={{ paddingTop: '1.5rem', borderTop: '1px solid #2a2a2a' }}>
+          <a href="/" style={{ color: '#c49c48', fontSize: '0.85rem', textDecoration: 'none' }}>
+            ← ダッシュボードに戻る
+          </a>
         </div>
       </div>
     </div>
