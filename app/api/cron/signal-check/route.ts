@@ -107,6 +107,7 @@ SIGNAL: [ルール番号] [シグナル名] - [理由を1行で]
       });
       const claudeData = await claudeRes.json();
       const text: string = claudeData.content?.[0]?.text ?? '';
+      console.log(`[${ticker}] Claude response:`, text);
 
       // 銘柄ごとの履歴をRedisに保存（最大30件）
       const history = await redis.get<Array<{ date: string; signals: string[]; checkedAt: string }>>(`signal:history:${ticker}`) ?? [];
