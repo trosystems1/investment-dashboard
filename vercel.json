@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/signal-check",
-      "schedule": "25 1 * * 1-5"
+      "schedule": "40 1 * * 1-5"
     }
   ]
 }
