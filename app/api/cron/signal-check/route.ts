@@ -14,8 +14,9 @@ async function fetchBars(ticker: string, days: number = 30) {
     `https://api.jquants.com/v2/equities/bars/daily?code=${ticker}&from=${from}&to=${to}`,
     { headers: { 'x-api-key': apiKey! } }
   );
-  if (!res.ok) return null;
   const data = await res.json();
+  console.log(`[fetchBars:${ticker}] status:${res.status} bars:${data.bars?.length ?? 0} message:${data.message ?? ''}`);
+  if (!res.ok) return null;
   return (data.bars ?? []) as Array<{ date: string; close: number; volume: number }>;
 }
 
