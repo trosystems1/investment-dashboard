@@ -1,10 +1,11 @@
-import type { Metadata } from 'next'
-import './globals.css'
-import AuthSessionProvider from '@/components/SessionProvider'
+import type { Metadata } from "next"
+import "./globals.css"
+import AuthSessionProvider from "@/components/SessionProvider"
+import GlobalNav from "@/components/GlobalNav"
 
 export const metadata: Metadata = {
-  title: 'APEX Investment Dashboard',
-  description: 'Private Wealth Portfolio',
+  title: "APEX Investment Dashboard",
+  description: "Private Wealth Portfolio",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -18,8 +19,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body style={{ background: '#0D0F14', margin: 0, fontFamily: 'var(--font-body)' }}>
-        <AuthSessionProvider>{children}</AuthSessionProvider>
+      <body style={{ background: "#0D0F14", margin: 0, fontFamily: "var(--font-body)" }}>
+        <AuthSessionProvider>
+          <GlobalNav />
+          {children}
+        </AuthSessionProvider>
       </body>
     </html>
   )
