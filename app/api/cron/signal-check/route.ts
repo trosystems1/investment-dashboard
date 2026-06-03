@@ -31,8 +31,9 @@ async function fetchCompanyName(ticker: string): Promise<string | null> {
 }
 
 export async function GET(req: Request) {
-  const auth = req.headers.get('authorization');
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  const authHeader = req.headers.get('authorization');
+  const cronHeader = req.headers.get('x-vercel-cron');
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}` && cronHeader !== '1') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
