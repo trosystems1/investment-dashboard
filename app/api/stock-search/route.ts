@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   const apiKey = process.env.JQUANTS_API_KEY
   if (!apiKey) return NextResponse.json({ results: [] })
 
-  const res = await fetch('https://api.jquants.com/v2/listed/info', {
+  const res = await fetch('https://api.jquants.com/v2/equities/master', {
     headers: { 'x-api-key': apiKey },
   })
   if (!res.ok) return NextResponse.json({ results: [] })
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   const data = await res.json()
   console.log('listed/info keys:', Object.keys(data))
   const infos: Array<{ Code: string; CompanyName: string; CompanyNameEnglish: string; MarketCodeName: string }> =
-    data.info ?? data.data ?? data.items ?? []
+    data.info ?? data.master ?? data.data ?? []
 
   const q4 = q.replace(/0$/, '')
   const filtered = infos
