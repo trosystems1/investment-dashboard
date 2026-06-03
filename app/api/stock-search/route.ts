@@ -15,8 +15,9 @@ export async function GET(request: Request) {
   if (!res.ok) return NextResponse.json({ results: [] })
 
   const data = await res.json()
+  console.log('listed/info keys:', Object.keys(data))
   const infos: Array<{ Code: string; CompanyName: string; CompanyNameEnglish: string; MarketCodeName: string }> =
-    data.info ?? []
+    data.info ?? data.data ?? data.items ?? []
 
   const q4 = q.replace(/0$/, '')
   const filtered = infos
