@@ -1,14 +1,12 @@
+cat > app/page.tsx << 'EOF'
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useSession, signOut } from 'next-auth/react'
-import KpiCard from '@/components/KpiCard'
 import StockTable from '@/components/StockTable'
 import InvestorTypesChart from '@/components/InvestorTypesChart'
 import TopixChart from '@/components/TopixChart'
 import NenkinRanking from '@/components/NenkinRanking'
 import PerRanking from '@/components/PerRanking'
-import SaxoPositions from '@/components/SaxoPositions'
 
 interface StockData {
   symbol: string; name: string; price: number
@@ -18,16 +16,16 @@ interface StockData {
 interface StockEntry { symbol: string; name: string; category: 'holding' | 'watch' }
 
 const DEFAULT_STOCKS: StockEntry[] = [
-  { symbol: '228A.T', name: 'opro',         category: 'holding' },
-  { symbol: '4397.T', name: 'TeamSpirit',   category: 'holding' },
-  { symbol: '4776.T', name: 'Cybozu',       category: 'holding' },
-  { symbol: '4811.T', name: 'Dream Arts',   category: 'holding' },
-  { symbol: '4374.T', name: 'ROBOT PAYMENT',category: 'watch'   },
-  { symbol: '431A.T', name: 'Ysona',        category: 'watch'   },
-  { symbol: '4443.T', name: 'Sansan',       category: 'watch'   },
-  { symbol: '4478.T', name: 'freee',        category: 'watch'   },
-  { symbol: '3994.T', name: 'MoneyForward', category: 'watch'   },
-  { symbol: '4058.T', name: 'Toyokumo',     category: 'watch'   },
+  { symbol: '228A.T', name: 'opro',          category: 'holding' },
+  { symbol: '4397.T', name: 'TeamSpirit',    category: 'holding' },
+  { symbol: '4776.T', name: 'Cybozu',        category: 'holding' },
+  { symbol: '4811.T', name: 'Dream Arts',    category: 'holding' },
+  { symbol: '4374.T', name: 'ROBOT PAYMENT', category: 'watch'   },
+  { symbol: '431A.T', name: 'Ysona',         category: 'watch'   },
+  { symbol: '4443.T', name: 'Sansan',        category: 'watch'   },
+  { symbol: '4478.T', name: 'freee',         category: 'watch'   },
+  { symbol: '3994.T', name: 'MoneyForward',  category: 'watch'   },
+  { symbol: '4058.T', name: 'Toyokumo',      category: 'watch'   },
 ]
 
 const STORAGE_KEY = 'apex_stocks_v1'
@@ -44,14 +42,12 @@ function saveStocks(entries: StockEntry[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
 }
 
-// 株式コード正規化: "4397" → "4397.T"
 function normalizeCode(raw: string) {
   const code = raw.trim().toUpperCase().replace(/\.T$/i, '')
   return code ? code + '.T' : ''
 }
 
 export default function Dashboard() {
-  const { data: session } = useSession()
   const [entries, setEntries] = useState<StockEntry[]>(DEFAULT_STOCKS)
   const [prices, setPrices] = useState<StockData[]>([])
   const [loading, setLoading] = useState(true)
@@ -61,24 +57,7 @@ export default function Dashboard() {
   const [addName, setAddName] = useState('')
   const [addCat, setAddCat] = useState<'holding' | 'watch'>('watch')
   const [addError, setAddError] = useState('')
-  const [saxoBalance, setSaxoBalance] = useState<any>(null)
-  const [saxoStatus, setSaxoStatus] = useState<'unknown' | 'connected' | 'disconnected'>('unknown')
 
-  useEffect(() => {
-    fetch('/api/saxo/balance')
-      .then(r => r.json())
-      .then(data => {
-        if (data?.error) {
-          setSaxoStatus('disconnected')
-        } else {
-          setSaxoBalance(data)
-          setSaxoStatus('connected')
-        }
-      })
-      .catch(() => setSaxoStatus('disconnected'))
-  }, [])
-
-  // localStorage から読み込み
   useEffect(() => { setEntries(loadStocks()) }, [])
 
   const fetchPrices = useCallback(async (list: StockEntry[]) => {
@@ -88,7 +67,6 @@ export default function Dashboard() {
       const res = await fetch('/api/stock?symbols=' + symbols)
       const json = await res.json()
       if (json.data) {
-        // API が返す name より localStorage の name を優先
         const nameMap = Object.fromEntries(list.map(e => [e.symbol, e.name]))
         const merged = json.data.map((d: StockData) => ({ ...d, name: nameMap[d.symbol] || d.name }))
         setPrices(merged)
@@ -108,15 +86,9 @@ export default function Dashboard() {
   const holdings = entries.filter(e => e.category === 'holding')
   const watchlist = entries.filter(e => e.category === 'watch')
   const priceMap = Object.fromEntries(prices.map(p => [p.symbol, p]))
-
-  // entries 全銘柄を表示（価格未取得はプレースホルダー）
   const holdingPrices  = holdings.map(e => priceMap[e.symbol] ?? { symbol: e.symbol, name: e.name, price: 0, change: 0, changePct: 0, currency: 'JPY' })
   const watchlistPrices = watchlist.map(e => priceMap[e.symbol] ?? { symbol: e.symbol, name: e.name, price: 0, change: 0, changePct: 0, currency: 'JPY' })
 
-  const avgChange = prices.length
-    ? (prices.reduce((s, x) => s + x.changePct, 0) / prices.length).toFixed(2) : null
-
-  // 追加
   const handleAdd = () => {
     setAddError('')
     const symbol = normalizeCode(addCode)
@@ -128,13 +100,11 @@ export default function Dashboard() {
     setAddCode(''); setAddName('')
   }
 
-  // 削除
   const handleRemove = (symbol: string) => {
     const next = entries.filter(e => e.symbol !== symbol)
     setEntries(next); saveStocks(next)
   }
 
-  // 移動
   const handleMove = (symbol: string) => {
     const next = entries.map(e =>
       e.symbol === symbol ? { ...e, category: e.category === 'holding' ? 'watch' : 'holding' } as StockEntry : e
@@ -148,158 +118,28 @@ export default function Dashboard() {
       <div style={{ position: 'fixed', bottom: -100, left: -100, width: 400, height: 400, background: 'radial-gradient(circle, rgba(59,130,246,0.06) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 1280, margin: '0 auto' }}>
 
-        {/* ヘッダー */}
-        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-6 md:mb-7">
+        {/* ページヘッダー */}
+        <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl md:text-[28px]" style={{ fontFamily: 'var(--font-body)', margin: 0, color: '#E8E4D9', letterSpacing: '-0.5px', fontWeight: 600 }}>APEX Portfolio</h1>
-            <p style={{ fontSize: 11, color: '#6B7280', margin: '4px 0 0', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Private Wealth · Global Multi-Asset</p>
-            <div style={{ width: 40, height: 2, background: 'linear-gradient(to right, #C49C48, transparent)', borderRadius: 1, marginTop: 8 }} />
+            <h2 style={{ fontSize: 20, fontWeight: 600, color: '#E8E4D9', margin: 0, letterSpacing: '-0.3px' }}>Market</h2>
+            <p style={{ fontSize: 11, color: '#6B7280', margin: '4px 0 0', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Japanese Equity Overview</p>
+            <div style={{ width: 32, height: 2, background: 'linear-gradient(to right, #C49C48, transparent)', borderRadius: 1, marginTop: 8 }} />
           </div>
-          <div className="flex items-center flex-wrap gap-2 md:gap-2.5">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {lastUpdated && <span style={{ fontSize: 11, color: '#4B5563' }}>更新: {lastUpdated}</span>}
-            <button onClick={() => { setLoading(true); fetchPrices(entries) }}
-              style={{ background: 'rgba(196,156,72,0.1)', border: '0.5px solid rgba(196,156,72,0.3)', padding: '6px 14px', borderRadius: 20, fontSize: 12, color: '#C49C48', cursor: 'pointer' }}>↻ 更新</button>
-            <a href="/watchlist" style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.1)', padding: '6px 14px', borderRadius: 20, fontSize: 12, color: '#B8B4A8', cursor: 'pointer', textDecoration: 'none' }}>📋 ウォッチリスト</a>
-            <a href="/settings" style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.1)', padding: '6px 14px', borderRadius: 20, fontSize: 12, color: '#B8B4A8', cursor: 'pointer', textDecoration: 'none' }}>⚙ シグナル設定</a>
-            <button onClick={() => setEditing(v => !v)}
-              style={{ background: editing ? 'rgba(196,156,72,0.15)' : 'rgba(255,255,255,0.04)', border: '0.5px solid ' + (editing ? 'rgba(196,156,72,0.4)' : 'rgba(255,255,255,0.1)'), padding: '6px 14px', borderRadius: 20, fontSize: 12, color: editing ? '#C49C48' : '#B8B4A8', cursor: 'pointer' }}>
+            <button
+              onClick={() => { setLoading(true); fetchPrices(entries) }}
+              style={{ background: 'rgba(196,156,72,0.1)', border: '0.5px solid rgba(196,156,72,0.3)', padding: '6px 14px', borderRadius: 20, fontSize: 12, color: '#C49C48', cursor: 'pointer' }}
+            >
+              ↻ 更新
+            </button>
+            <button
+              onClick={() => setEditing(v => !v)}
+              style={{ background: editing ? 'rgba(196,156,72,0.15)' : 'rgba(255,255,255,0.04)', border: '0.5px solid ' + (editing ? 'rgba(196,156,72,0.4)' : 'rgba(255,255,255,0.1)'), padding: '6px 14px', borderRadius: 20, fontSize: 12, color: editing ? '#C49C48' : '#B8B4A8', cursor: 'pointer' }}
+            >
               {editing ? '✓ 完了' : '✎ リスト編集'}
             </button>
-            <div style={{ background: 'rgba(196,156,72,0.08)', border: '0.5px solid rgba(196,156,72,0.2)', padding: '6px 14px', borderRadius: 20, fontSize: 12, color: '#C49C48' }}>
-              {new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
-            </div>
-            {session?.user && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {session.user.image && (
-                  <img
-                    src={session.user.image}
-                    alt="avatar"
-                    style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(196,156,72,0.3)' }}
-                  />
-                )}
-                <button
-                  onClick={() => signOut({ callbackUrl: '/login' })}
-                  style={{
-                    fontSize: 11,
-                    padding: '4px 10px',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    background: 'transparent',
-                    color: '#6B7280',
-                  }}
-                >
-                  サインアウト
-                </button>
-              </div>
-            )}
           </div>
-        </div>
-
-        {/* KPI */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <KpiCard label="Total Value" value="¥142.8M" badge="2.34% 前日比" badgeUp isGold />
-          <KpiCard label="Day P&L" value="+¥3.26M" badge="本日損益" badgeUp />
-          <KpiCard label="WL Avg Change" value={avgChange ? (parseFloat(avgChange) >= 0 ? '+' : '') + avgChange + '%' : '---'} badge="ウォッチリスト平均" badgeUp={!avgChange || parseFloat(avgChange) >= 0} />
-          <KpiCard label="Sharpe Ratio" value="2.41" badge="リスク調整済" badgeUp />
-        </div>
-
-        {/* SAXO 未接続バナー */}
-        {saxoStatus === 'disconnected' && (
-          <a
-            href="/saxo-connect"
-            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 px-4 py-3 sm:px-5 sm:py-4"
-            style={{
-              background: 'linear-gradient(135deg, rgba(196,156,72,0.08), rgba(196,156,72,0.03))',
-              border: '1px solid rgba(196,156,72,0.3)',
-              borderRadius: 12,
-              color: '#C49C48',
-              textDecoration: 'none',
-            }}
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: 32, height: 32, borderRadius: '50%',
-                background: 'rgba(196,156,72,0.15)', border: '0.5px solid rgba(196,156,72,0.35)',
-                fontSize: 16, flexShrink: 0,
-              }}>⚠</span>
-              <div className="min-w-0">
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#C49C48' }}>サクソバンク未接続</div>
-                <div style={{ fontSize: 11, color: 'rgba(196,156,72,0.7)', marginTop: 2 }}>
-                  SAXO 残高・ポジション情報を表示するには接続が必要です
-                </div>
-              </div>
-            </div>
-            <span
-              className="self-start sm:self-auto"
-              style={{
-                fontSize: 12,
-                padding: '6px 14px',
-                borderRadius: 20,
-                background: 'rgba(196,156,72,0.15)',
-                border: '0.5px solid rgba(196,156,72,0.4)',
-                color: '#C49C48',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              接続する →
-            </span>
-          </a>
-        )}
-
-        {/* SAXO 残高 */}
-        {saxoBalance && (
-          <div
-            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6"
-            style={{
-              background: 'rgba(255,255,255,0.02)',
-              border: '1px solid rgba(196,156,72,0.15)',
-              borderRadius: 12,
-              padding: '16px 20px',
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 10, color: '#4B5563', marginBottom: 4, letterSpacing: '0.05em' }}>SAXO 総資産</div>
-              <div style={{ fontSize: 22, color: '#C49C48', fontWeight: 700 }}>
-                ${saxoBalance.totalValue?.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-              </div>
-              {saxoBalance.totalValueJpy && (
-                <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
-                  ≈ ¥{saxoBalance.totalValueJpy?.toLocaleString('ja-JP')}
-                </div>
-              )}
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: '#4B5563', marginBottom: 4, letterSpacing: '0.05em' }}>現金残高</div>
-              <div style={{ fontSize: 22, color: '#B8B4A8', fontWeight: 700 }}>
-                ${saxoBalance.cashBalance?.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: '#4B5563', marginBottom: 4, letterSpacing: '0.05em' }}>含み損益</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: saxoBalance.unrealizedPnL >= 0 ? '#4ADE80' : '#F87171' }}>
-                {saxoBalance.unrealizedPnL >= 0 ? '+' : ''}${saxoBalance.unrealizedPnL?.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-              </div>
-              {saxoBalance.unrealizedPnLJpy != null && (
-                <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
-                  ≈ {saxoBalance.unrealizedPnLJpy >= 0 ? '+' : ''}¥{saxoBalance.unrealizedPnLJpy?.toLocaleString('ja-JP')}
-                </div>
-              )}
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: '#4B5563', marginBottom: 4, letterSpacing: '0.05em' }}>口座</div>
-              <div style={{ fontSize: 13, color: '#B8B4A8', fontWeight: 500, marginTop: 4 }}>{saxoBalance.accountId}</div>
-              <a href="/saxo-connect" style={{ fontSize: 10, color: '#4B5563', textDecoration: 'none' }}>再接続</a>
-            </div>
-          </div>
-        )}
-
-        <SaxoPositions />
-
-        {/* TOPIX */}
-        <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 20, marginBottom: 16 }}>
-          <TopixChart />
         </div>
 
         {/* 投資部門別 */}
@@ -307,11 +147,16 @@ export default function Dashboard() {
           <InvestorTypesChart />
         </div>
 
+        {/* TOPIX */}
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+          <TopixChart />
+        </div>
+
         {/* 保有株 | ウォッチリスト */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {(['holding', 'watch'] as const).map(cat => {
-            const label    = cat === 'holding' ? '保有株' : 'ウォッチリスト'
-            const catList  = cat === 'holding' ? holdings : watchlist
+            const label     = cat === 'holding' ? '保有株' : 'ウォッチリスト'
+            const catList   = cat === 'holding' ? holdings : watchlist
             const catPrices = cat === 'holding' ? holdingPrices : watchlistPrices
 
             return (
@@ -319,16 +164,13 @@ export default function Dashboard() {
                 <div style={{ fontSize: 14, color: '#B8B4A8', fontWeight: 500, marginBottom: 16 }}>
                   {label} <span style={{ fontSize: 11, color: '#4B5563' }}>({catList.length} 銘柄)</span>
                 </div>
-
                 {editing ? (
-                  /* 編集モード */
                   <div>
                     {catList.map(e => (
                       <div key={e.symbol} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 4px', borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}>
                         <span style={{ fontSize: 13, color: '#E8E4D9', minWidth: 56 }}>{e.symbol.replace('.T', '')}</span>
                         <span style={{ flex: 1, fontSize: 11, color: '#6B7280' }}>{e.name}</span>
                         <button onClick={() => handleMove(e.symbol)}
-                          title={cat === 'holding' ? 'ウォッチに移動' : '保有株に移動'}
                           style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '0.5px solid rgba(196,156,72,0.3)', background: 'transparent', color: '#C49C48', cursor: 'pointer' }}>
                           {cat === 'holding' ? '→ Watch' : '→ 保有'}
                         </button>
@@ -336,8 +178,6 @@ export default function Dashboard() {
                           style={{ fontSize: 13, padding: '3px 7px', borderRadius: 5, border: '0.5px solid rgba(248,113,113,0.3)', background: 'transparent', color: '#F87171', cursor: 'pointer' }}>✕</button>
                       </div>
                     ))}
-
-                    {/* 追加フォーム */}
                     <div style={{ marginTop: 12, padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '0.5px solid rgba(255,255,255,0.06)' }}>
                       <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 8 }}>銘柄を追加</div>
                       <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
@@ -364,7 +204,6 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ) : (
-                  /* 通常モード */
                   <StockTable stocks={catPrices} loading={loading} />
                 )}
               </div>
@@ -381,3 +220,4 @@ export default function Dashboard() {
     </div>
   )
 }
+EOF

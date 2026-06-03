@@ -1,284 +1,222 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react'
+import StockTable from '@/components/StockTable'
+import InvestorTypesChart from '@/components/InvestorTypesChart'
+import TopixChart from '@/components/TopixChart'
+import NenkinRanking from '@/components/NenkinRanking'
+import PerRanking from '@/components/PerRanking'
 
-type HistoryEntry = {
-  date: string;
-  signals: string[];
-  checkedAt: string;
-};
+interface StockData {
+  symbol: string; name: string; price: number
+  change: number; changePct: number; currency: string
+}
 
-type WatchlistItem = {
-  ticker: string;
-  companyName: string;
-  history: HistoryEntry[];
-};
+interface StockEntry { symbol: string; name: string; category: 'holding' | 'watch' }
 
-type ListedInfo = {
-  companyName: string;
-  segment: string;
-};
+const DEFAULT_STOCKS: StockEntry[] = [
+  { symbol: '228A.T', name: 'opro',          category: 'holding' },
+  { symbol: '4397.T', name: 'TeamSpirit',    category: 'holding' },
+  { symbol: '4776.T', name: 'Cybozu',        category: 'holding' },
+  { symbol: '4811.T', name: 'Dream Arts',    category: 'holding' },
+  { symbol: '4374.T', name: 'ROBOT PAYMENT', category: 'watch'   },
+  { symbol: '431A.T', name: 'Ysona',         category: 'watch'   },
+  { symbol: '4443.T', name: 'Sansan',        category: 'watch'   },
+  { symbol: '4478.T', name: 'freee',         category: 'watch'   },
+  { symbol: '3994.T', name: 'MoneyForward',  category: 'watch'   },
+  { symbol: '4058.T', name: 'Toyokumo',      category: 'watch'   },
+]
 
-const SEGMENT_COLORS: Record<string, { color: string; border: string; background: string }> = {
-  プライム: { color: 'rgba(196,156,72,0.85)', border: 'rgba(196,156,72,0.35)', background: 'rgba(196,156,72,0.08)' },
-  グロース: { color: 'rgba(180,200,220,0.75)', border: 'rgba(180,200,220,0.25)', background: 'rgba(180,200,220,0.06)' },
-  スタンダード: { color: 'rgba(232,224,208,0.55)', border: 'rgba(232,224,208,0.2)', background: 'rgba(232,224,208,0.04)' },
-};
+const STORAGE_KEY = 'apex_stocks_v1'
 
-const segmentKey = (segment: string) => {
-  if (segment.startsWith('プライム')) return 'プライム';
-  if (segment.startsWith('グロース')) return 'グロース';
-  if (segment.startsWith('スタンダード')) return 'スタンダード';
-  return '';
-};
+function loadStocks(): StockEntry[] {
+  if (typeof window === 'undefined') return DEFAULT_STOCKS
+  try {
+    const s = localStorage.getItem(STORAGE_KEY)
+    return s ? JSON.parse(s) : DEFAULT_STOCKS
+  } catch { return DEFAULT_STOCKS }
+}
 
-export default function WatchlistPage() {
-  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [listedInfo, setListedInfo] = useState<Record<string, ListedInfo>>({});
+function saveStocks(entries: StockEntry[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
+}
+
+function normalizeCode(raw: string) {
+  const code = raw.trim().toUpperCase().replace(/\.T$/i, '')
+  return code ? code + '.T' : ''
+}
+
+export default function Dashboard() {
+  const [entries, setEntries] = useState<StockEntry[]>(DEFAULT_STOCKS)
+  const [prices, setPrices] = useState<StockData[]>([])
+  const [loading, setLoading] = useState(true)
+  const [lastUpdated, setLastUpdated] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [addCode, setAddCode] = useState('')
+  const [addName, setAddName] = useState('')
+  const [addCat, setAddCat] = useState<'holding' | 'watch'>('watch')
+  const [addError, setAddError] = useState('')
+
+  useEffect(() => { setEntries(loadStocks()) }, [])
+
+  const fetchPrices = useCallback(async (list: StockEntry[]) => {
+    if (!list.length) return
+    try {
+      const symbols = list.map(e => e.symbol).join(',')
+      const res = await fetch('/api/stock?symbols=' + symbols)
+      const json = await res.json()
+      if (json.data) {
+        const nameMap = Object.fromEntries(list.map(e => [e.symbol, e.name]))
+        const merged = json.data.map((d: StockData) => ({ ...d, name: nameMap[d.symbol] || d.name }))
+        setPrices(merged)
+        setLastUpdated(new Date().toLocaleTimeString('ja-JP'))
+      }
+    } catch (e) { console.error(e) }
+    finally { setLoading(false) }
+  }, [])
 
   useEffect(() => {
-    fetch('/api/watchlist')
-      .then(r => r.json())
-      .then(d => {
-        const list: WatchlistItem[] = d.watchlist ?? [];
-        setWatchlist(list);
-        setLoading(false);
+    setLoading(true)
+    fetchPrices(entries)
+    const t = setInterval(() => fetchPrices(entries), 60000)
+    return () => clearInterval(t)
+  }, [entries, fetchPrices])
 
-        list.forEach(item => {
-          const code = item.ticker.replace(/0$/, '');
-          fetch(`/api/listed-info?code=${encodeURIComponent(code)}`)
-            .then(r => (r.ok ? r.json() : null))
-            .then(json => {
-              const first = json?.data?.data?.[0];
-              if (!first) return;
-              setListedInfo(prev => ({
-                ...prev,
-                [item.ticker]: {
-                  companyName: first.CoName || '',
-                  segment: first.MktNm || '',
-                },
-              }));
-            })
-            .catch(() => {});
-        });
-      });
-  }, []);
+  const holdings = entries.filter(e => e.category === 'holding')
+  const watchlist = entries.filter(e => e.category === 'watch')
+  const priceMap = Object.fromEntries(prices.map(p => [p.symbol, p]))
+  const holdingPrices  = holdings.map(e => priceMap[e.symbol] ?? { symbol: e.symbol, name: e.name, price: 0, change: 0, changePct: 0, currency: 'JPY' })
+  const watchlistPrices = watchlist.map(e => priceMap[e.symbol] ?? { symbol: e.symbol, name: e.name, price: 0, change: 0, changePct: 0, currency: 'JPY' })
 
-  const getLatestSignal = (history: HistoryEntry[]) => {
-    for (const entry of history) {
-      if (entry.signals.length > 0) return { date: entry.date, signals: entry.signals };
-    }
-    return null;
-  };
+  const handleAdd = () => {
+    setAddError('')
+    const symbol = normalizeCode(addCode)
+    if (!symbol) { setAddError('コードを入力してください'); return }
+    if (entries.some(e => e.symbol === symbol)) { setAddError('すでに登録されています'); return }
+    const name = addName.trim() || symbol.replace('.T', '')
+    const next = [...entries, { symbol, name, category: addCat }]
+    setEntries(next); saveStocks(next)
+    setAddCode(''); setAddName('')
+  }
+
+  const handleRemove = (symbol: string) => {
+    const next = entries.filter(e => e.symbol !== symbol)
+    setEntries(next); saveStocks(next)
+  }
+
+  const handleMove = (symbol: string) => {
+    const next = entries.map(e =>
+      e.symbol === symbol ? { ...e, category: e.category === 'holding' ? 'watch' : 'holding' } as StockEntry : e
+    )
+    setEntries(next); saveStocks(next)
+  }
 
   return (
-    <div
-      className="px-4 py-6 sm:px-6 sm:py-10"
-      style={{
-        minHeight: '100vh',
-        background: '#0a0a0f',
-        color: '#e8e0d0',
-        fontFamily: 'var(--font-body)',
-      }}
-    >
-      <div style={{ maxWidth: 800, margin: '0 auto' }}>
+    <div className="p-4 md:p-6" style={{ minHeight: '100vh', background: '#0D0F14', fontFamily: 'var(--font-body)', color: '#E8E4D9' }}>
+      <div style={{ position: 'fixed', top: -200, right: -200, width: 500, height: 500, background: 'radial-gradient(circle, rgba(196,156,72,0.06) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
+      <div style={{ position: 'fixed', bottom: -100, left: -100, width: 400, height: 400, background: 'radial-gradient(circle, rgba(59,130,246,0.06) 0%, transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
+      <div style={{ position: 'relative', zIndex: 1, maxWidth: 1280, margin: '0 auto' }}>
 
-        {/* ヘッダー */}
-        <div className="mb-7 md:mb-10">
-          <p style={{ color: 'rgba(196,156,72,0.7)', fontSize: 12, letterSpacing: '0.15em', marginBottom: 8 }}>
-            APEX DASHBOARD
-          </p>
-          <h1 className="text-2xl md:text-[28px]" style={{ fontWeight: 600, color: '#e8e0d0', margin: 0 }}>
-            ウォッチリスト
-          </h1>
-          <p style={{ color: 'rgba(232,224,208,0.5)', fontSize: 14, marginTop: 8 }}>
-            銘柄ごとのシグナル検出履歴
-          </p>
+        {/* ページヘッダー */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 style={{ fontSize: 20, fontWeight: 600, color: '#E8E4D9', margin: 0, letterSpacing: '-0.3px' }}>Market</h2>
+            <p style={{ fontSize: 11, color: '#6B7280', margin: '4px 0 0', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Japanese Equity Overview</p>
+            <div style={{ width: 32, height: 2, background: 'linear-gradient(to right, #C49C48, transparent)', borderRadius: 1, marginTop: 8 }} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {lastUpdated && <span style={{ fontSize: 11, color: '#4B5563' }}>更新: {lastUpdated}</span>}
+            <button
+              onClick={() => { setLoading(true); fetchPrices(entries) }}
+              style={{ background: 'rgba(196,156,72,0.1)', border: '0.5px solid rgba(196,156,72,0.3)', padding: '6px 14px', borderRadius: 20, fontSize: 12, color: '#C49C48', cursor: 'pointer' }}
+            >
+              ↻ 更新
+            </button>
+            <button
+              onClick={() => setEditing(v => !v)}
+              style={{ background: editing ? 'rgba(196,156,72,0.15)' : 'rgba(255,255,255,0.04)', border: '0.5px solid ' + (editing ? 'rgba(196,156,72,0.4)' : 'rgba(255,255,255,0.1)'), padding: '6px 14px', borderRadius: 20, fontSize: 12, color: editing ? '#C49C48' : '#B8B4A8', cursor: 'pointer' }}
+            >
+              {editing ? '✓ 完了' : '✎ リスト編集'}
+            </button>
+          </div>
         </div>
 
-        {loading ? (
-          <div style={{ color: 'rgba(232,224,208,0.3)', fontSize: 14, textAlign: 'center', paddingTop: 60 }}>
-            読み込み中...
-          </div>
-        ) : watchlist.length === 0 ? (
-          <div style={{ color: 'rgba(232,224,208,0.3)', fontSize: 14, textAlign: 'center', paddingTop: 60 }}>
-            ウォッチリストに銘柄が登録されていません。
-            <br />
-            <a href="/settings" style={{ color: 'rgba(196,156,72,0.7)', marginTop: 8, display: 'inline-block' }}>
-              設定画面で追加する →
-            </a>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {watchlist.map((item) => {
-              const latest = getLatestSignal(item.history);
-              const isExpanded = expanded === item.ticker;
+        {/* 投資部門別 */}
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+          <InvestorTypesChart />
+        </div>
 
-              return (
-                <div key={item.ticker} style={{
-                  background: 'rgba(255,255,255,0.02)',
-                  border: `1px solid ${latest ? 'rgba(196,156,72,0.3)' : 'rgba(255,255,255,0.07)'}`,
-                  borderRadius: 12,
-                  overflow: 'hidden',
-                }}>
-                  {/* 銘柄ヘッダー */}
-                  <div
-                    onClick={() => setExpanded(isExpanded ? null : item.ticker)}
-                    className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-4"
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div>
-                        {(() => {
-                          const info = listedInfo[item.ticker];
-                          const name = info?.companyName;
-                          const segment = info?.segment ?? '';
-                          const seg = segment ? SEGMENT_COLORS[segmentKey(segment)] : null;
-                          return (
-                            <>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                {name ? (
-                                  <>
-                                    <span style={{ fontSize: 15, fontWeight: 600, color: '#e8e0d0' }}>
-                                      {name}
-                                    </span>
-                                    <span style={{
-                                      fontSize: 12, color: 'rgba(196,156,72,0.6)',
-                                      letterSpacing: '0.05em',
-                                    }}>
-                                      {item.ticker}
-                                    </span>
-                                  </>
-                                ) : (
-                                  <span style={{ fontSize: 15, fontWeight: 600, color: '#e8e0d0', letterSpacing: '0.05em' }}>
-                                    {item.ticker}
-                                  </span>
-                                )}
-                              </div>
-                              {segment && seg && (
-                                <span style={{
-                                  display: 'inline-block',
-                                  marginTop: 4,
-                                  padding: '2px 8px',
-                                  fontSize: 10,
-                                  letterSpacing: '0.1em',
-                                  color: seg.color,
-                                  background: seg.background,
-                                  border: `0.5px solid ${seg.border}`,
-                                  borderRadius: 10,
-                                }}>
-                                  {segment}
-                                </span>
-                              )}
-                            </>
-                          );
-                        })()}
+        {/* TOPIX */}
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+          <TopixChart />
+        </div>
+
+        {/* 保有株 | ウォッチリスト */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {(['holding', 'watch'] as const).map(cat => {
+            const label     = cat === 'holding' ? '保有株' : 'ウォッチリスト'
+            const catList   = cat === 'holding' ? holdings : watchlist
+            const catPrices = cat === 'holding' ? holdingPrices : watchlistPrices
+
+            return (
+              <div key={cat} style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 20 }}>
+                <div style={{ fontSize: 14, color: '#B8B4A8', fontWeight: 500, marginBottom: 16 }}>
+                  {label} <span style={{ fontSize: 11, color: '#4B5563' }}>({catList.length} 銘柄)</span>
+                </div>
+
+                {editing ? (
+                  <div>
+                    {catList.map(e => (
+                      <div key={e.symbol} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 4px', borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}>
+                        <span style={{ fontSize: 13, color: '#E8E4D9', minWidth: 56 }}>{e.symbol.replace('.T', '')}</span>
+                        <span style={{ flex: 1, fontSize: 11, color: '#6B7280' }}>{e.name}</span>
+                        <button onClick={() => handleMove(e.symbol)}
+                          style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '0.5px solid rgba(196,156,72,0.3)', background: 'transparent', color: '#C49C48', cursor: 'pointer' }}>
+                          {cat === 'holding' ? '→ Watch' : '→ 保有'}
+                        </button>
+                        <button onClick={() => handleRemove(e.symbol)}
+                          style={{ fontSize: 13, padding: '3px 7px', borderRadius: 5, border: '0.5px solid rgba(248,113,113,0.3)', background: 'transparent', color: '#F87171', cursor: 'pointer' }}>✕</button>
                       </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      {latest ? (
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 11, color: 'rgba(232,224,208,0.4)', marginBottom: 2 }}>
-                            {latest.date}
-                          </div>
-                          <div style={{ fontSize: 12, color: 'rgba(196,156,72,0.9)' }}>
-                            🔔 {latest.signals.length}件のシグナル
-                          </div>
-                        </div>
-                      ) : (
-                        <span style={{ fontSize: 12, color: 'rgba(232,224,208,0.3)' }}>
-                          シグナル履歴なし
-                        </span>
-                      )}
-                      <span style={{
-                        color: 'rgba(232,224,208,0.3)',
-                        fontSize: 12,
-                        transform: isExpanded ? 'rotate(180deg)' : 'none',
-                        transition: 'transform 0.2s',
-                        display: 'inline-block',
-                      }}>▼</span>
+                    ))}
+                    <div style={{ marginTop: 12, padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '0.5px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 8 }}>銘柄を追加</div>
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+                        <input
+                          value={addCat === cat ? addCode : ''}
+                          onChange={e => { setAddCode(e.target.value); setAddCat(cat); setAddError('') }}
+                          onFocus={() => setAddCat(cat)}
+                          placeholder="証券コード（例: 4397）"
+                          style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: '#E8E4D9', outline: 'none' }}
+                          onKeyDown={e => { if (e.key === 'Enter' && addCat === cat) handleAdd() }}
+                        />
+                        <input
+                          value={addCat === cat ? addName : ''}
+                          onChange={e => { setAddName(e.target.value); setAddCat(cat) }}
+                          onFocus={() => setAddCat(cat)}
+                          placeholder="名前（省略可）"
+                          style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: '#E8E4D9', outline: 'none' }}
+                          onKeyDown={e => { if (e.key === 'Enter' && addCat === cat) handleAdd() }}
+                        />
+                        <button onClick={() => { setAddCat(cat); handleAdd() }}
+                          style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'rgba(196,156,72,0.2)', color: '#C49C48', fontSize: 12, cursor: 'pointer' }}>追加</button>
+                      </div>
+                      {addError && addCat === cat && <div style={{ fontSize: 11, color: '#F87171' }}>{addError}</div>}
                     </div>
                   </div>
+                ) : (
+                  <StockTable stocks={catPrices} loading={loading} />
+                )}
+              </div>
+            )
+          })}
+        </div>
 
-                  {/* 履歴展開 */}
-                  {isExpanded && (
-                    <div
-                      className="px-4 py-4 sm:px-5"
-                      style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
-                    >
-                      {item.history.length === 0 ? (
-                        <p style={{ fontSize: 13, color: 'rgba(232,224,208,0.3)', margin: 0 }}>
-                          まだ履歴がありません。次回のCron実行後に表示されます。
-                        </p>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {item.history.map((entry, i) => (
-                            <div key={i}
-                              className="flex flex-col sm:flex-row gap-1 sm:gap-4"
-                              style={{
-                                padding: '10px 14px',
-                                background: entry.signals.length > 0
-                                  ? 'rgba(196,156,72,0.05)'
-                                  : 'rgba(255,255,255,0.01)',
-                                border: `1px solid ${entry.signals.length > 0
-                                  ? 'rgba(196,156,72,0.15)'
-                                  : 'rgba(255,255,255,0.04)'}`,
-                                borderRadius: 8,
-                              }}>
-                              <div className="sm:min-w-[80px]" style={{
-                                fontSize: 12,
-                                color: 'rgba(232,224,208,0.4)',
-                                flexShrink: 0,
-                                paddingTop: 1,
-                              }}>
-                                {entry.date}
-                              </div>
-                              <div style={{ flex: 1 }}>
-                                {entry.signals.length > 0 ? (
-                                  entry.signals.map((sig, j) => (
-                                    <div key={j} style={{
-                                      fontSize: 13,
-                                      color: 'rgba(196,156,72,0.9)',
-                                      lineHeight: 1.6,
-                                    }}>
-                                      🔔 {sig}
-                                    </div>
-                                  ))
-                                ) : (
-                                  <span style={{ fontSize: 13, color: 'rgba(232,224,208,0.3)' }}>
-                                    ✓ シグナルなし
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ナビゲーション */}
-        <div
-          className="flex flex-wrap gap-4 sm:gap-6 mt-10 pt-6"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
-        >
-          <a href="/" style={{ color: 'rgba(196,156,72,0.7)', fontSize: 13, textDecoration: 'none' }}>
-            ← ダッシュボードに戻る
-          </a>
-          <a href="/settings" style={{ color: 'rgba(196,156,72,0.7)', fontSize: 13, textDecoration: 'none' }}>
-            シグナル設定 →
-          </a>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
+          <NenkinRanking />
+          <PerRanking />
         </div>
 
       </div>
     </div>
-  );
+  )
 }
