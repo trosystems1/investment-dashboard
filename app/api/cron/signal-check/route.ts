@@ -15,7 +15,7 @@ async function fetchBars(ticker: string, days: number = 30) {
     { headers: { 'x-api-key': apiKey! } }
   );
   const data = await res.json();
-  console.log(`[fetchBars:${ticker}] status:${res.status} bars:${data.bars?.length ?? 0} message:${data.message ?? ''}`);
+  console.log(`[fetchBars:${ticker}] status:${res.status} raw:${JSON.stringify(data).slice(0, 200)}`);
   if (!res.ok) return null;
   return (data.bars ?? []) as Array<{ date: string; close: number; volume: number }>;
 }
