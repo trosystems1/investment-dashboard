@@ -57,6 +57,7 @@ export async function GET(req: Request) {
 
   for (const ticker of tickers) {
     const bars = await fetchBars(ticker, 30);
+    console.log(`[${ticker}] bars count:`, bars?.length ?? 'null');
     if (!bars || bars.length < 5) continue;
 
     // 会社名をキャッシュ（未登録なら取得して保存）
