@@ -15,9 +15,9 @@ export default function PortfolioPage() {
   }, [status, router])
 
   useEffect(() => {
-    fetch('/api/saxo/status')
+    fetch('/api/saxo/balance')
       .then(r => r.json())
-      .then(j => setSaxoStatus(j.connected ? 'connected' : 'disconnected'))
+      .then(j => setSaxoStatus(j.error ? 'disconnected' : 'connected'))
       .catch(() => setSaxoStatus('disconnected'))
   }, [])
 
