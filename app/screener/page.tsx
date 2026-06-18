@@ -41,6 +41,8 @@ export default function ScreenerPage() {
   const [filters, setFilters] = useState({
     pbrMax: '', roeMin: '', divMin: '', mcapMin: '',
   })
+  const [page, setPage] = useState(1)
+  const pageSize = 200
 
   useEffect(() => {
     fetch('/api/screener')
@@ -48,6 +50,10 @@ export default function ScreenerPage() {
       .then(json => { setData(json.data || []); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, filters])
 
   const filtered = useMemo(() => {
     return data
@@ -67,6 +73,12 @@ export default function ScreenerPage() {
         return sortDir === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1)
       })
   }, [data, search, sortKey, sortDir, filters])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paged = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filtered.slice(start, start + pageSize)
+  }, [filtered, page])
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -137,7 +149,7 @@ export default function ScreenerPage() {
                   データがありません。Cronジョブを実行してください。
                 </td></tr>
               ) : (
-                filtered.slice(0, 200).map(s => (
+                paged.map(s => (
                   <tr key={s.code} style={{ cursor: 'pointer' }}
                     onMouseEnter={e => (e.currentTarget.style.background = 'rgba(196,156,72,0.05)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -160,10 +172,37 @@ export default function ScreenerPage() {
             </tbody>
           </table>
         </div>
-        {filtered.length > 200 && (
-          <p style={{ fontSize: 11, color: '#4B5563', marginTop: 8 }}>
-            ※ 表示は上位200件まで。フィルタで絞り込んでください。
-          </p>
+        {filtered.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+            <p style={{ fontSize: 11, color: '#4B5563', margin: 0 }}>
+              {(page - 1) * pageSize + 1}〜{Math.min(page * pageSize, filtered.length)}件目 / 全{filtered.length}件
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                style={{
+                  fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: page <= 1 ? 'default' : 'pointer',
+                  border: 'none', background: 'rgba(255,255,255,0.05)', color: page <= 1 ? '#374151' : '#B8B4A8',
+                }}
+              >
+                前へ
+              </button>
+              <span style={{ fontSize: 11, color: '#6B7280', display: 'flex', alignItems: 'center' }}>
+                {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                style={{
+                  fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: page >= totalPages ? 'default' : 'pointer',
+                  border: 'none', background: 'rgba(255,255,255,0.05)', color: page >= totalPages ? '#374151' : '#B8B4A8',
+                }}
+              >
+                次へ
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>
