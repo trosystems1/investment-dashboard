@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
 import { sendLINE } from '@/lib/line';
+import { buildSignalsFromHistory, dateJST } from '@/lib/signal-run';
 
 const redis = Redis.fromEnv();
 
@@ -56,7 +57,7 @@ export async function GET(req: Request) {
 
   const tickers = (savedTickers && savedTickers.length > 0) ? savedTickers : DEFAULT_TICKERS;
   const signals: string[] = [];
-  const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-');
+  const today = dateJST();
 
   for (const ticker of tickers) {
     const bars = await fetchBars(ticker, 30);
@@ -144,18 +145,20 @@ SIGNAL: [ルール番号] [シグナル名] - [理由を1行で]
     await sendLINE(message);
   }
 
+  const reconciledSignals = await buildSignalsFromHistory(redis, tickers, today);
+
   await redis.set('signal:last_run', {
     timestamp: new Date().toISOString(),
-    signalCount: signals.length,
-    signals,
+    signalCount: reconciledSignals.length,
+    signals: reconciledSignals,
     tickerCount: tickers.length,
     ruleCount: activeRules.length,
   });
 
   return NextResponse.json({
     success: true,
-    signalCount: signals.length,
-    signals,
+    signalCount: reconciledSignals.length,
+    signals: reconciledSignals,
     tickerCount: tickers.length,
     ruleCount: activeRules.length,
   });
