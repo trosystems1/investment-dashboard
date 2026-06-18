@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
       const finRes = await fetchWithRetry(url, { 'x-api-key': apiKey })
       const finJson = await finRes.json()
       console.log('fins/summary response keys:', Object.keys(finJson), 'data length:', finJson.data?.length)
+      console.log('fins/summary error message:', finJson.message)
       for (const r of finJson.data || []) {
         const code = r.Code
         if (!finMap[code] || r.DiscDate > finMap[code].DiscDate) {
