@@ -15,8 +15,7 @@ export async function POST(req: Request) {
   }
   const normalized = tickers
     .map((t: string) => t.trim().toUpperCase())
-    .filter(Boolean)
-    .map((t: string) => t.endsWith('0') ? t : `${t}0`);
+    .filter(Boolean);
   await redis.set('signal:watchlist', normalized);
   return NextResponse.json({ success: true, tickers: normalized });
 }
