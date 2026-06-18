@@ -7,6 +7,13 @@ import TopixChart from '@/components/TopixChart'
 import NenkinRanking from '@/components/NenkinRanking'
 import PerRanking from '@/components/PerRanking'
 
+interface SignalRun {
+  timestamp: string
+  signalCount: number
+  signals: string[]
+  tickerCount: number
+}
+
 interface StockData {
   symbol: string; name: string; price: number
   change: number; changePct: number; currency: string
@@ -56,8 +63,16 @@ export default function Dashboard() {
   const [addName, setAddName] = useState('')
   const [addCat, setAddCat] = useState<'holding' | 'watch'>('watch')
   const [addError, setAddError] = useState('')
+  const [signalRun, setSignalRun] = useState<SignalRun | null>(null)
 
   useEffect(() => { setEntries(loadStocks()) }, [])
+
+  useEffect(() => {
+    fetch('/api/settings/signal')
+      .then(r => r.json())
+      .then(j => setSignalRun(j.lastRun))
+      .catch(() => {})
+  }, [])
 
   const fetchPrices = useCallback(async (list: StockEntry[]) => {
     if (!list.length) return
@@ -140,6 +155,34 @@ export default function Dashboard() {
             </button>
           </div>
         </div>
+
+        {signalRun && signalRun.signalCount > 0 && (
+          <a href="/settings" style={{
+            display: 'block', background: 'rgba(196,156,72,0.06)',
+            border: '0.5px solid rgba(196,156,72,0.25)', borderRadius: 10,
+            padding: '14px 20px', marginBottom: 16, textDecoration: 'none',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 15 }}>🔔</span>
+                <span style={{ fontSize: 13, color: '#C49C48', fontWeight: 500 }}>
+                  シグナル検出 {signalRun.signalCount}件
+                </span>
+                <span style={{ fontSize: 11, color: '#6B7280' }}>
+                  {new Date(signalRun.timestamp).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <span style={{ fontSize: 11, color: '#6B7280' }}>詳細 →</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {signalRun.signals.map((s, i) => (
+                <div key={i} style={{ fontSize: 12, color: '#B8B4A8', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                  {s}
+                </div>
+              ))}
+            </div>
+          </a>
+        )}
 
         {/* 投資部門別 */}
         <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 20, marginBottom: 16 }}>

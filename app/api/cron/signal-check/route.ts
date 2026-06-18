@@ -24,12 +24,12 @@ async function fetchBars(ticker: string, days: number = 30) {
 async function fetchCompanyName(ticker: string): Promise<string | null> {
   const apiKey = process.env.JQUANTS_API_KEY;
   const res = await fetch(
-    `https://api.jquants.com/v2/listed/info?code=${ticker}`,
+    `https://api.jquants.com/v2/equities/master?code=${ticker}`,
     { headers: { 'x-api-key': apiKey! } }
   );
   if (!res.ok) return null;
   const data = await res.json();
-  return data.info?.[0]?.CompanyName ?? null;
+  return data.master?.[0]?.CoName ?? data.data?.[0]?.CoName ?? null;
 }
 
 export async function GET(req: Request) {
