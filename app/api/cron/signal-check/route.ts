@@ -17,7 +17,8 @@ async function fetchBars(ticker: string, days: number = 30) {
   const data = await res.json();
   console.log(`[fetchBars:${ticker}] status:${res.status} raw:${JSON.stringify(data).slice(0, 200)}`);
   if (!res.ok) return null;
-  return (data.bars ?? data.data ?? []) as Array<{ date: string; close: number; volume: number }>;
+  const rows = (data.bars ?? data.data ?? []) as Array<{ Date: string; C: number; Vo: number }>;
+  return rows.map(r => ({ date: r.Date, close: r.C, volume: r.Vo }));
 }
 
 async function fetchCompanyName(ticker: string): Promise<string | null> {
