@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { gunzipSync } from 'zlib'
 import { Redis } from '@upstash/redis'
 
 const redis = new Redis({
@@ -13,6 +14,34 @@ async function fetchWithRetry(url: string, headers: Record<string, string>, retr
     await new Promise(r => setTimeout(r, 1000 * (i + 1)))
   }
   throw new Error('Rate limit exceeded after retries')
+}
+
+function parseCSV(text: string): Record<string, string>[] {
+  const lines = text.split('\n').filter(l => l.trim().length > 0)
+  if (lines.length === 0) return []
+  const headers = lines[0].split(',').map(h => h.trim())
+  const rows: Record<string, string>[] = []
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',')
+    const row: Record<string, string> = {}
+    headers.forEach((h, idx) => { row[h] = cols[idx]?.trim() ?? '' })
+    rows.push(row)
+  }
+  return rows
+}
+
+async function fetchBulkCSV(apiKey: string, endpoint: string, date: string): Promise<Record<string, string>[]> {
+  const getUrl = `https://api.jquants.com/v2/bulk/get?endpoint=${encodeURIComponent(endpoint)}&date=${date}`
+  const getRes = await fetchWithRetry(getUrl, { 'x-api-key': apiKey })
+  const getJson = await getRes.json()
+  if (!getJson.url) {
+    console.log(`bulk/get response for ${endpoint} ${date}:`, JSON.stringify(getJson))
+    return []
+  }
+  const fileRes = await fetch(getJson.url)
+  const buffer = Buffer.from(await fileRes.arrayBuffer())
+  const decompressed = gunzipSync(buffer).toString('utf-8')
+  return parseCSV(decompressed)
 }
 
 export async function GET(req: NextRequest) {
@@ -85,41 +114,23 @@ export async function GET(req: NextRequest) {
     }
 
     const priceMap: Record<string, number> = {}
-    let priceErrorCount = 0
-    let price429Count = 0
-    let priceEmptyCount = 0
-    const chunkSize = 50
-    for (let i = 0; i < primeCodes.length; i += chunkSize) {
-      const chunk = primeCodes.slice(i, i + chunkSize)
-      await Promise.all(
-        chunk.map(async (code: string) => {
-          try {
-            const res = await fetch(
-              `https://api.jquants.com/v2/equities/bars/daily?code=${code}&date=${dateStr}`,
-              { headers: { 'x-api-key': apiKey } }
-            )
-            if (res.status === 429) { price429Count++; return }
-            if (!res.ok) { priceErrorCount++; return }
-            const json = await res.json()
-            const price = json.data?.[0]?.C
-            if (price) {
-              priceMap[code] = price
-            } else {
-              priceEmptyCount++
-            }
-          } catch (_) {
-            priceErrorCount++
-          }
-        })
-      )
+    const dateHyphen = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`
+    try {
+      const priceRows = await fetchBulkCSV(apiKey, '/equities/bars/daily', dateHyphen)
+      console.log('bulk price rows (raw):', priceRows.length)
+      const targetRows = priceRows.filter(r => r.Date === dateHyphen)
+      console.log('bulk price rows (filtered to target date):', targetRows.length)
+      for (const row of targetRows) {
+        const code = row.Code
+        const price = parseFloat(row.C)
+        if (code && !isNaN(price)) {
+          priceMap[code] = price
+        }
+      }
+    } catch (e: any) {
+      console.log('bulk price fetch error:', e.message)
     }
-    console.log('price fetch summary:', {
-      total: primeCodes.length,
-      success: Object.keys(priceMap).length,
-      rateLimited429: price429Count,
-      otherErrors: priceErrorCount,
-      emptyData: priceEmptyCount,
-    })
+    console.log('price fetch summary:', { total: primeCodes.length, success: Object.keys(priceMap).length })
 
     const screenerData = primeStocks
       .map((s: any) => {
