@@ -18,18 +18,18 @@ type Stock = {
 type SortKey = keyof Stock
 type SortDir = 'asc' | 'desc'
 
-const COLUMNS: { key: SortKey; label: string; format: (v: any) => string }[] = [
-  { key: 'code',      label: 'コード',    format: v => v },
-  { key: 'name',      label: '銘柄名',    format: v => v },
-  { key: 'sector',    label: '業種',      format: v => v },
-  { key: 'price',     label: '株価',      format: v => v?.toLocaleString() + '円' },
-  { key: 'marketCap', label: '時価総額',  format: v => v ? v.toLocaleString() + '億' : '-' },
-  { key: 'pbr',       label: 'PBR',       format: v => v ? v + '倍' : '-' },
-  { key: 'per',       label: 'PER',       format: v => v ? v + '倍' : '-' },
-  { key: 'fper',      label: '予想PER',   format: v => v ? v + '倍' : '-' },
-  { key: 'roe',       label: 'ROE',       format: v => v ? v + '%' : '-' },
-  { key: 'divYield',  label: '配当利回り', format: v => v ? v + '%' : '-' },
-  { key: 'opMargin',  label: '営業利益率', format: v => v ? v + '%' : '-' },
+const COLUMNS: { key: SortKey; label: string; format: (v: any) => string; align: 'left' | 'right' }[] = [
+  { key: 'code',      label: 'コード',    format: v => v, align: 'right' },
+  { key: 'name',      label: '銘柄名',    format: v => v, align: 'left' },
+  { key: 'sector',    label: '業種',      format: v => v, align: 'left' },
+  { key: 'price',     label: '株価',      format: v => v?.toLocaleString() + '円', align: 'right' },
+  { key: 'marketCap', label: '時価総額',  format: v => v ? v.toLocaleString() + '億' : '-', align: 'right' },
+  { key: 'pbr',       label: 'PBR',       format: v => v ? v + '倍' : '-', align: 'right' },
+  { key: 'per',       label: 'PER',       format: v => v ? v + '倍' : '-', align: 'right' },
+  { key: 'fper',      label: '予想PER',   format: v => v ? v + '倍' : '-', align: 'right' },
+  { key: 'roe',       label: 'ROE',       format: v => v ? v + '%' : '-', align: 'right' },
+  { key: 'divYield',  label: '配当利回り', format: v => v ? v + '%' : '-', align: 'right' },
+  { key: 'opMargin',  label: '営業利益率', format: v => v ? v + '%' : '-', align: 'right' },
 ]
 
 export default function ScreenerPage() {
@@ -135,7 +135,7 @@ export default function ScreenerPage() {
             <thead>
               <tr style={{ background: 'rgba(196,156,72,0.05)' }}>
                 {COLUMNS.map(col => (
-                  <th key={col.key} onClick={() => handleSort(col.key)} style={hcell}>
+                  <th key={col.key} onClick={() => handleSort(col.key)} style={{ ...hcell, textAlign: col.align }}>
                     {col.label} {sortKey === col.key ? (sortDir === 'desc' ? '↓' : '↑') : ''}
                   </th>
                 ))}
@@ -157,6 +157,7 @@ export default function ScreenerPage() {
                     {COLUMNS.map(col => (
                       <td key={col.key} style={{
                         ...cell,
+                        textAlign: col.align,
                         color: col.key === 'code' ? '#C49C48'
                           : col.key === 'roe' && s.roe && s.roe >= 8 ? '#4ADE80'
                           : col.key === 'pbr' && s.pbr && s.pbr < 1 ? '#4ADE80'
