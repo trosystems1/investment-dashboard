@@ -85,6 +85,9 @@ export async function GET(req: NextRequest) {
     }
 
     const priceMap: Record<string, number> = {}
+    let priceErrorCount = 0
+    let price429Count = 0
+    let priceEmptyCount = 0
     const chunkSize = 50
     for (let i = 0; i < primeCodes.length; i += chunkSize) {
       const chunk = primeCodes.slice(i, i + chunkSize)
@@ -95,13 +98,28 @@ export async function GET(req: NextRequest) {
               `https://api.jquants.com/v2/equities/bars/daily?code=${code}&date=${dateStr}`,
               { headers: { 'x-api-key': apiKey } }
             )
+            if (res.status === 429) { price429Count++; return }
+            if (!res.ok) { priceErrorCount++; return }
             const json = await res.json()
             const price = json.data?.[0]?.C
-            if (price) priceMap[code] = price
-          } catch (_) {}
+            if (price) {
+              priceMap[code] = price
+            } else {
+              priceEmptyCount++
+            }
+          } catch (_) {
+            priceErrorCount++
+          }
         })
       )
     }
+    console.log('price fetch summary:', {
+      total: primeCodes.length,
+      success: Object.keys(priceMap).length,
+      rateLimited429: price429Count,
+      otherErrors: priceErrorCount,
+      emptyData: priceEmptyCount,
+    })
 
     const screenerData = primeStocks
       .map((s: any) => {
