@@ -91,17 +91,19 @@ export async function GET(req: NextRequest) {
     }
 
     const finMap: Record<string, any> = {}
+    const dailyCounts: Record<string, number> = {}
     for (const day of businessDays) {
       let paginationKey: string | undefined = undefined
       let page = 0
+      let dayCount = 0
       do {
         const url: string = `https://api.jquants.com/v2/fins/summary?date=${day}${paginationKey ? `&pagination_key=${paginationKey}` : ''}`
         const finRes = await fetchWithRetry(url, { 'x-api-key': apiKey })
         const finJson = await finRes.json()
-        if (page === 0) {
-          console.log(`fins/summary ${day} response keys:`, Object.keys(finJson), 'data length:', finJson.data?.length)
-          if (finJson.message) console.log(`fins/summary ${day} error message:`, finJson.message)
+        if (page === 0 && finJson.message) {
+          console.log(`fins/summary ${day} error message:`, finJson.message)
         }
+        dayCount += finJson.data?.length || 0
         for (const r of finJson.data || []) {
           const code = r.Code
           if (!finMap[code] || r.DiscDate > finMap[code].DiscDate) {
@@ -111,7 +113,9 @@ export async function GET(req: NextRequest) {
         paginationKey = finJson.pagination_key
         page++
       } while (paginationKey && page < 5)
+      dailyCounts[day] = dayCount
     }
+    console.log('fins/summary daily counts:', JSON.stringify(dailyCounts))
 
     const priceMap: Record<string, number> = {}
     const dateHyphen = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`
