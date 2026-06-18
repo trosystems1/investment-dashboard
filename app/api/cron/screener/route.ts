@@ -48,25 +48,41 @@ export async function GET(req: NextRequest) {
 
     const primeCodes = primeStocks.map((s: any) => s.Code)
 
-    const finMap: Record<string, any> = {}
-    let paginationKey: string | undefined = undefined
-    let page = 0
-    do {
-      const url: string = `https://api.jquants.com/v2/fins/summary?from=${fromStr}&to=${toStr}${paginationKey ? `&pagination_key=${paginationKey}` : ''}`
-      console.log('fins/summary URL:', url)
-      const finRes = await fetchWithRetry(url, { 'x-api-key': apiKey })
-      const finJson = await finRes.json()
-      console.log('fins/summary response keys:', Object.keys(finJson), 'data length:', finJson.data?.length)
-      console.log('fins/summary error message:', finJson.message)
-      for (const r of finJson.data || []) {
-        const code = r.Code
-        if (!finMap[code] || r.DiscDate > finMap[code].DiscDate) {
-          finMap[code] = r
+    // 営業日（土日を除く）のリストを30日分作成
+    const businessDays: string[] = []
+    {
+      const cursor = new Date(today)
+      cursor.setDate(cursor.getDate() - 1) // 今日は決算未確定の可能性があるため前日から
+      while (businessDays.length < 30) {
+        if (cursor.getDay() !== 0 && cursor.getDay() !== 6) {
+          businessDays.push(cursor.toISOString().split('T')[0])
         }
+        cursor.setDate(cursor.getDate() - 1)
       }
-      paginationKey = finJson.pagination_key
-      page++
-    } while (paginationKey && page < 20)
+    }
+
+    const finMap: Record<string, any> = {}
+    for (const day of businessDays) {
+      let paginationKey: string | undefined = undefined
+      let page = 0
+      do {
+        const url: string = `https://api.jquants.com/v2/fins/summary?date=${day}${paginationKey ? `&pagination_key=${paginationKey}` : ''}`
+        const finRes = await fetchWithRetry(url, { 'x-api-key': apiKey })
+        const finJson = await finRes.json()
+        if (page === 0) {
+          console.log(`fins/summary ${day} response keys:`, Object.keys(finJson), 'data length:', finJson.data?.length)
+          if (finJson.message) console.log(`fins/summary ${day} error message:`, finJson.message)
+        }
+        for (const r of finJson.data || []) {
+          const code = r.Code
+          if (!finMap[code] || r.DiscDate > finMap[code].DiscDate) {
+            finMap[code] = r
+          }
+        }
+        paginationKey = finJson.pagination_key
+        page++
+      } while (paginationKey && page < 5)
+    }
 
     const priceMap: Record<string, number> = {}
     const chunkSize = 50
