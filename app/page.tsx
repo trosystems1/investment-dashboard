@@ -156,31 +156,39 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {signalRun && signalRun.signalCount > 0 && (
+        {signalRun && (
           <a href="/settings" style={{
-            display: 'block', background: 'rgba(196,156,72,0.06)',
-            border: '0.5px solid rgba(196,156,72,0.25)', borderRadius: 10,
-            padding: '14px 20px', marginBottom: 16, textDecoration: 'none',
+            display: 'block',
+            background: signalRun.signalCount > 0 ? 'rgba(196,156,72,0.06)' : 'rgba(255,255,255,0.02)',
+            border: `0.5px solid ${signalRun.signalCount > 0 ? 'rgba(196,156,72,0.25)' : 'rgba(255,255,255,0.08)'}`,
+            borderRadius: 10,
+            padding: signalRun.signalCount > 0 ? '14px 20px' : '12px 20px',
+            marginBottom: 16,
+            textDecoration: 'none',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 15 }}>🔔</span>
-                <span style={{ fontSize: 15, color: '#C49C48', fontWeight: 500 }}>
-                  シグナル検出 {signalRun.signalCount}件
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: signalRun.signalCount > 0 ? 8 : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 15 }}>{signalRun.signalCount > 0 ? '🔔' : '✓'}</span>
+                <span style={{ fontSize: 15, color: signalRun.signalCount > 0 ? '#C49C48' : '#6B7280', fontWeight: 500 }}>
+                  {signalRun.signalCount > 0 ? `シグナル検出 ${signalRun.signalCount}件` : 'シグナルなし'}
                 </span>
                 <span style={{ fontSize: 11, color: '#6B7280' }}>
-                  {new Date(signalRun.timestamp).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}　/　次回: 平日 朝9:00
+                  {new Date(signalRun.timestamp).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {signalRun.tickerCount ? `　${signalRun.tickerCount}銘柄チェック` : ''}
+                  　/　次回: 平日 朝9:00
                 </span>
               </div>
               <span style={{ fontSize: 11, color: '#6B7280' }}>詳細 →</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {signalRun.signals.map((s, i) => (
-                <div key={i} style={{ fontSize: 14, color: '#B8B4A8', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-                  {s}
-                </div>
-              ))}
-            </div>
+            {signalRun.signalCount > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {signalRun.signals.map((s, i) => (
+                  <div key={i} style={{ fontSize: 14, color: '#B8B4A8', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                    {s}
+                  </div>
+                ))}
+              </div>
+            )}
           </a>
         )}
 

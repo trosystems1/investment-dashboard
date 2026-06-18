@@ -41,6 +41,18 @@ interface LastRun {
   tickerCount?: number
 }
 
+interface HistoryEntry {
+  date: string
+  signals: string[]
+  checkedAt: string
+}
+
+interface WatchlistItem {
+  ticker: string
+  companyName: string
+  history: HistoryEntry[]
+}
+
 export default function SettingsPage() {
   const [tickers, setTickers] = useState<string[]>([])
   const [nameMap, setNameMap] = useState<Record<string, string>>(BUILTIN_NAMES)
@@ -55,6 +67,7 @@ export default function SettingsPage() {
   const [rulesSaving, setRulesSaving] = useState(false)
   const [rulesSaved, setRulesSaved] = useState(false)
   const [lastRun, setLastRun] = useState<LastRun | null>(null)
+  const [watchlistHistory, setWatchlistHistory] = useState<WatchlistItem[]>([])
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -88,6 +101,10 @@ export default function SettingsPage() {
         else if (d.prompt) setRules([d.prompt])
         if (d.lastRun) setLastRun(d.lastRun)
       })
+    fetch('/api/watchlist')
+      .then((r) => r.json())
+      .then((d) => setWatchlistHistory(d.watchlist ?? []))
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -416,6 +433,45 @@ export default function SettingsPage() {
                 {s}
               </div>
             ))}
+            {watchlistHistory.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <p style={{ fontSize: '0.75rem', color: '#666', letterSpacing: '0.08em', margin: '0 0 10px' }}>
+                  銘柄別チェック履歴（直近）
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {watchlistHistory.map((item) => {
+                    const latest = item.history[0]
+                    return (
+                      <div
+                        key={item.ticker}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          justifyContent: 'space-between',
+                          gap: 12,
+                          background: '#1a1a1a',
+                          border: '1px solid #2a2a2a',
+                          borderRadius: 4,
+                          padding: '0.5rem 0.75rem',
+                          fontSize: '0.85rem',
+                        }}
+                      >
+                        <span style={{ color: '#ccc' }}>
+                          {item.companyName}
+                          <span style={{ color: '#666', marginLeft: 8, fontSize: '0.75rem' }}>{item.ticker}</span>
+                        </span>
+                        <span style={{ color: latest?.signals.length ? '#c49c48' : '#666', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          {latest
+                            ? (latest.signals.length > 0 ? `🔔 ${latest.signals.length}件` : '✓ なし')
+                            : '未チェック'}
+                          {latest?.date ? <span style={{ color: '#555', marginLeft: 8, fontSize: '0.75rem' }}>{latest.date}</span> : null}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
