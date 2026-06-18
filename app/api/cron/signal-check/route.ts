@@ -29,7 +29,6 @@ async function fetchCompanyName(ticker: string): Promise<string | null> {
     { headers: { 'x-api-key': apiKey! } }
   );
   const data = await res.json();
-  console.log(`[fetchCompanyName:${ticker}] status:${res.status} raw:${JSON.stringify(data).slice(0, 300)}`);
   if (!res.ok) return null;
   return data.data?.[0]?.CoName ?? data.master?.[0]?.CoName ?? null;
 }

@@ -165,7 +165,7 @@ export default function Dashboard() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 15 }}>🔔</span>
-                <span style={{ fontSize: 13, color: '#C49C48', fontWeight: 500 }}>
+                <span style={{ fontSize: 15, color: '#C49C48', fontWeight: 500 }}>
                   シグナル検出 {signalRun.signalCount}件
                 </span>
                 <span style={{ fontSize: 11, color: '#6B7280' }}>
@@ -174,9 +174,9 @@ export default function Dashboard() {
               </div>
               <span style={{ fontSize: 11, color: '#6B7280' }}>詳細 →</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {signalRun.signals.map((s, i) => (
-                <div key={i} style={{ fontSize: 12, color: '#B8B4A8', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                <div key={i} style={{ fontSize: 14, color: '#B8B4A8', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
                   {s}
                 </div>
               ))}
