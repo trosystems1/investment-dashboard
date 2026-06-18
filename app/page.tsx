@@ -169,7 +169,7 @@ export default function Dashboard() {
                   シグナル検出 {signalRun.signalCount}件
                 </span>
                 <span style={{ fontSize: 11, color: '#6B7280' }}>
-                  {new Date(signalRun.timestamp).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {new Date(signalRun.timestamp).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}　/　次回: 平日 朝9:00
                 </span>
               </div>
               <span style={{ fontSize: 11, color: '#6B7280' }}>詳細 →</span>
