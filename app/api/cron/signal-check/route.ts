@@ -23,13 +23,15 @@ async function fetchBars(ticker: string, days: number = 30) {
 
 async function fetchCompanyName(ticker: string): Promise<string | null> {
   const apiKey = process.env.JQUANTS_API_KEY;
+  const codeWithoutSuffix = ticker.endsWith('0') ? ticker.slice(0, -1) : ticker;
   const res = await fetch(
-    `https://api.jquants.com/v2/equities/master?code=${ticker}`,
+    `https://api.jquants.com/v2/equities/master?code=${codeWithoutSuffix}`,
     { headers: { 'x-api-key': apiKey! } }
   );
-  if (!res.ok) return null;
   const data = await res.json();
-  return data.master?.[0]?.CoName ?? data.data?.[0]?.CoName ?? null;
+  console.log(`[fetchCompanyName:${ticker}] status:${res.status} raw:${JSON.stringify(data).slice(0, 300)}`);
+  if (!res.ok) return null;
+  return data.data?.[0]?.CoName ?? data.master?.[0]?.CoName ?? null;
 }
 
 export async function GET(req: Request) {
