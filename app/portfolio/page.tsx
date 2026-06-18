@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import KpiCard from '@/components/KpiCard'
 import SaxoPositions from '@/components/SaxoPositions'
+import { formatJPYCompound, formatJPYCompoundSigned } from '@/lib/format'
 
 export default function PortfolioPage() {
   const { data: session, status } = useSession()
@@ -36,8 +37,8 @@ export default function PortfolioPage() {
 
         {/* KPI（ダミー） */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <KpiCard label="Total Value"    value="¥142.8M" badge="2.34% 前日比" badgeUp isGold />
-          <KpiCard label="Day P&L"        value="+¥3.26M" badge="本日損益"     badgeUp />
+          <KpiCard label="Total Value"    value={formatJPYCompound(142_800_000)} badge="2.34% 前日比" badgeUp isGold />
+          <KpiCard label="Day P&L"        value={formatJPYCompoundSigned(3_260_000)} badge="本日損益"     badgeUp />
           <KpiCard label="Unrealized P&L" value="---"     badge="含み損益"     badgeUp />
           <KpiCard label="Sharpe Ratio"   value="2.41"    badge="リスク調整済" badgeUp />
         </div>

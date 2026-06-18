@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { formatJPYCompoundSigned } from '@/lib/format'
 
 type Position = {
   uic: number
@@ -17,8 +18,7 @@ type Position = {
 const fmtUSD = (v: number) =>
   (v >= 0 ? '+' : '-') + '$' + Math.abs(v).toLocaleString('en-US', { maximumFractionDigits: 0 })
 
-const fmtJPY = (v: number) =>
-  (v >= 0 ? '+' : '-') + '¥' + Math.abs(v).toLocaleString('ja-JP', { maximumFractionDigits: 0 })
+const fmtJPY = (v: number) => formatJPYCompoundSigned(v)
 
 const fmtPct = (v: number) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%'
 

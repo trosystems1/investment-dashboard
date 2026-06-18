@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { formatJPYCompound } from '@/lib/format'
 
 interface PerItem {
   ticker: string
@@ -60,7 +61,7 @@ export default function PerRanking() {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, color: '#E8E4D9', marginBottom: 2 }}>{item.name}</div>
               <div style={{ fontSize: 11, color: '#6B7280' }}>
-                ¥{item.price.toLocaleString()}
+                {formatJPYCompound(item.price)}
                 <span style={{ marginLeft: 8 }}>EPS ¥{item.eps.toFixed(1)}</span>
               </div>
             </div>

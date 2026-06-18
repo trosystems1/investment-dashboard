@@ -1,11 +1,12 @@
 'use client'
 import { useRouter } from 'next/navigation'
+import { formatJPYCompound } from '@/lib/format'
 
 interface StockData { symbol: string; name: string; price: number; change: number; changePct: number; currency: string }
 interface StockTableProps { stocks: StockData[]; loading: boolean }
 
 function fmt(price: number, currency: string) {
-  if (currency === 'JPY') return '\u00A5' + price.toLocaleString('ja-JP', { maximumFractionDigits: 0 })
+  if (currency === 'JPY') return formatJPYCompound(price)
   return '$' + price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
