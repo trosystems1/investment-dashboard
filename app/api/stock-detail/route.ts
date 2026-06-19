@@ -2,17 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { neon } from '@neondatabase/serverless'
 import { getShareholderRecord } from '@/lib/edinet-shareholders-store'
 
-const CODE_MAP: Record<string, { name: string; code: string; corporateNumber: string }> = {
-  "228A.T": { name: "opro", code: "228A0", corporateNumber: "2010401054559" },
-  "4397.T": { name: "TeamSpirit", code: "43970", corporateNumber: "1010001116826" },
-  "4374.T": { name: "ROBOT PAYMENT", code: "43740", corporateNumber: "" },
-  "431A.T": { name: "Ysona", code: "431A0", corporateNumber: "" },
-  "4443.T": { name: "Sansan", code: "44430", corporateNumber: "4010001120965" },
-  "4478.T": { name: "freee", code: "44780", corporateNumber: "" },
-  "3994.T": { name: "MoneyForward", code: "39940", corporateNumber: "6011101063359" },
-  "4776.T": { name: "Cybozu", code: "47760", corporateNumber: "5010001072207" },
-  "4058.T": { name: "Toyokumo", code: "40580", corporateNumber: "" },
-  "4811.T": { name: "Dream Arts", code: "48110", corporateNumber: "" },
+// 法人番号が判明しているのはウォッチリスト銘柄のみ。社会保険被保険者数(年金データ)の
+// 紐付けに使うため、ここに登録されている銘柄だけ社員数セクションが表示される。
+const CORPORATE_NUMBERS: Record<string, string> = {
+  "228A0": "2010401054559", // opro
+  "43970": "1010001116826", // TeamSpirit
+  "44430": "4010001120965", // Sansan
+  "39940": "6011101063359", // MoneyForward
+  "47760": "5010001072207", // Cybozu
 }
 
 function getDateRange(range: string) {
@@ -33,8 +30,11 @@ export async function GET(req: NextRequest) {
   const ticker = searchParams.get("ticker") || ""
   const range = searchParams.get("range") || "3mo"
   const apiKey = process.env.JQUANTS_API_KEY!
-  const meta = CODE_MAP[ticker]
-  if (!meta) return NextResponse.json({ error: "Unknown ticker" }, { status: 404 })
+
+  // ticker例: "3994.T" / "228A.T" → 末尾の ".T" を除いた4文字に "0" を付けた5桁が J-Quants の Code
+  const code4 = ticker.replace(/\.T$/, "")
+  if (!code4) return NextResponse.json({ error: "Unknown ticker" }, { status: 404 })
+  const code = code4 + "0"
 
   const { from, to } = getDateRange(range)
   const year1From = new Date()
@@ -42,16 +42,23 @@ export async function GET(req: NextRequest) {
   const year1FromStr = year1From.toISOString().split("T")[0].replace(/-/g, "")
 
   try {
-    const [chartRes, year1Res, finRes, shareholderRecord] = await Promise.all([
-      fetch(`https://api.jquants.com/v2/equities/bars/daily?code=${meta.code}&from=${from}&to=${to}`, { headers: { "x-api-key": apiKey } }),
-      fetch(`https://api.jquants.com/v2/equities/bars/daily?code=${meta.code}&from=${year1FromStr}&to=${to}`, { headers: { "x-api-key": apiKey } }),
-      fetch(`https://api.jquants.com/v2/fins/summary?code=${meta.code}`, { headers: { "x-api-key": apiKey } }),
-      getShareholderRecord(meta.code),
+    const [chartRes, year1Res, finRes, masterRes, shareholderRecord] = await Promise.all([
+      fetch(`https://api.jquants.com/v2/equities/bars/daily?code=${code}&from=${from}&to=${to}`, { headers: { "x-api-key": apiKey } }),
+      fetch(`https://api.jquants.com/v2/equities/bars/daily?code=${code}&from=${year1FromStr}&to=${to}`, { headers: { "x-api-key": apiKey } }),
+      fetch(`https://api.jquants.com/v2/fins/summary?code=${code}`, { headers: { "x-api-key": apiKey } }),
+      fetch(`https://api.jquants.com/v2/equities/master`, { headers: { "x-api-key": apiKey } }),
+      getShareholderRecord(code),
     ])
 
     const chartJson = await chartRes.json()
     const year1Json = await year1Res.json()
     const finJson = await finRes.json()
+    const masterJson = await masterRes.json()
+
+    const masterEntry = (masterJson.data || []).find((s: any) => s.Code === code)
+    if (!masterEntry) return NextResponse.json({ error: "Unknown ticker" }, { status: 404 })
+    const name = masterEntry.CoName
+    const corporateNumber = CORPORATE_NUMBERS[code] || ""
 
     const quotes = chartJson.data || []
     const year1Quotes = year1Json.data || []
@@ -88,9 +95,9 @@ export async function GET(req: NextRequest) {
         eps: parseFloat(d.EPS || "0"),
       }))
 
-    // 社員数データ取得
+    // 社員数データ取得（法人番号が判明している銘柄のみ）
     let nenkinData = null
-    if (meta.corporateNumber && process.env.NENKIN_DATABASE_URL) {
+    if (corporateNumber && process.env.NENKIN_DATABASE_URL) {
       try {
         const sql = neon(process.env.NENKIN_DATABASE_URL)
         const rows = await sql`
@@ -98,7 +105,7 @@ export async function GET(req: NextRequest) {
             LAG(nr.insured_count) OVER (ORDER BY nr.record_date) as prev_count
           FROM nenkin_records nr
           JOIN companies c ON c.id = nr.company_id
-          WHERE c.corporate_number = ${meta.corporateNumber}
+          WHERE c.corporate_number = ${corporateNumber}
           ORDER BY nr.record_date DESC
           LIMIT 6
         `
@@ -123,7 +130,7 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({
-      ticker, name: meta.name, price,
+      ticker, name, price,
       change: parseFloat((latest?.C - prev?.C).toFixed(0)),
       changePct: parseFloat(((latest?.C - prev?.C) / prev?.C * 100).toFixed(2)),
       open: latest?.O, high: latest?.H, low: latest?.L, volume: latest?.Vo,

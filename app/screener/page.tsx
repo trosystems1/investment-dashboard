@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 
 type Stock = {
   code: string
@@ -33,6 +34,7 @@ const COLUMNS: { key: SortKey; label: string; format: (v: any) => string; align:
 ]
 
 export default function ScreenerPage() {
+  const router = useRouter()
   const [data, setData]       = useState<Stock[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
@@ -151,6 +153,7 @@ export default function ScreenerPage() {
               ) : (
                 paged.map(s => (
                   <tr key={s.code} style={{ cursor: 'pointer' }}
+                    onClick={() => router.push(`/stock/${s.code}.T`)}
                     onMouseEnter={e => (e.currentTarget.style.background = 'rgba(196,156,72,0.05)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   >
