@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { neon } from '@neondatabase/serverless'
+import { getShareholderRecord } from '@/lib/edinet-shareholders-store'
 
 const CODE_MAP: Record<string, { name: string; code: string; corporateNumber: string }> = {
   "228A.T": { name: "opro", code: "228A0", corporateNumber: "2010401054559" },
@@ -41,10 +42,11 @@ export async function GET(req: NextRequest) {
   const year1FromStr = year1From.toISOString().split("T")[0].replace(/-/g, "")
 
   try {
-    const [chartRes, year1Res, finRes] = await Promise.all([
+    const [chartRes, year1Res, finRes, shareholderRecord] = await Promise.all([
       fetch(`https://api.jquants.com/v2/equities/bars/daily?code=${meta.code}&from=${from}&to=${to}`, { headers: { "x-api-key": apiKey } }),
       fetch(`https://api.jquants.com/v2/equities/bars/daily?code=${meta.code}&from=${year1FromStr}&to=${to}`, { headers: { "x-api-key": apiKey } }),
       fetch(`https://api.jquants.com/v2/fins/summary?code=${meta.code}`, { headers: { "x-api-key": apiKey } }),
+      getShareholderRecord(meta.code),
     ])
 
     const chartJson = await chartRes.json()
@@ -59,7 +61,7 @@ export async function GET(req: NextRequest) {
     const latest = quotes[quotes.length - 1]
     const prev = quotes.length > 1 ? quotes[quotes.length - 2] : latest
     const high52 = year1Quotes.length ? Math.max(...year1Quotes.map((q: any) => q.H)) : latest?.H || 0
-    const low52 = year1Quotes.length ? Math.min(...year1Quotes.map((q: any) => q.L)) : latest?.L || 0
+    const low52 = year1Quotes.length ? Math.min(...year1Quotes.map((q:any) => q.L)) : latest?.L || 0
     const price = latest?.C || 0
     const waterLevel = high52 > low52 ? Math.round((price - low52) / (high52 - low52) * 100) : 50
     const history = quotes.map((q: any) => ({ date: q.Date.slice(5), value: q.C }))
@@ -131,6 +133,9 @@ export async function GET(req: NextRequest) {
       finPeriod: latestFin.CurPerType || "",
       finDate: latestFin.DiscDate || "",
       nenkin: nenkinData,
+      shareholders: shareholderRecord?.shareholders || [],
+      shareholdersAsOf: shareholderRecord?.submitDateTime || "",
+      shareholdersFiler: shareholderRecord?.filerName || "",
       source: "jquants",
     })
   } catch (e: any) {

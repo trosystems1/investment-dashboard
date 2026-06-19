@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, BarChart, Bar } from 'recharts'
+import MajorShareholdersTable from '@/components/MajorShareholdersTable'
 
 const RANGES = ['1mo', '3mo', '6mo', '1y'] as const
 type Range = typeof RANGES[number]
@@ -528,6 +529,14 @@ export default function StockPage() {
                   </ResponsiveContainer>
                 )}
               </div>
+            )}
+
+            {data.shareholders && data.shareholders.length > 0 && (
+              <MajorShareholdersTable
+                companyName={data.name}
+                asOfDate={data.shareholdersAsOf}
+                shareholders={data.shareholders}
+              />
             )}
 
           </div>
