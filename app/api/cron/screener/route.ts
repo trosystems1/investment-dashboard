@@ -7,11 +7,13 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN!,
 })
 
-async function fetchWithRetry(url: string, headers: Record<string, string>, retries = 3): Promise<Response> {
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+async function fetchWithRetry(url: string, headers: Record<string, string>, retries = 5): Promise<Response> {
   for (let i = 0; i < retries; i++) {
     const res = await fetch(url, { headers })
     if (res.status !== 429) return res
-    await new Promise(r => setTimeout(r, 1000 * (i + 1)))
+    await sleep(2000 * (i + 1))
   }
   throw new Error('Rate limit exceeded after retries')
 }
@@ -110,6 +112,7 @@ export async function GET(req: NextRequest) {
         }
         paginationKey = finJson.pagination_key
         page++
+        await sleep(1100) // J-Quants 60req/分のレート制限を避けるためのスリープ
       } while (paginationKey && page < 5)
       dailyCounts[day] = dayCount
     }
