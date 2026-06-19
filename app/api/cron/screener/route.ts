@@ -63,10 +63,6 @@ export async function GET(req: NextRequest) {
     )
 
     const today = new Date()
-    const from = new Date(today)
-    from.setDate(from.getDate() - 90)
-    const fromStr = from.toISOString().split('T')[0]
-    const toStr = today.toISOString().split('T')[0]
 
     const target = new Date(today)
     target.setDate(target.getDate() - 1)
@@ -77,12 +73,14 @@ export async function GET(req: NextRequest) {
 
     const primeCodes = primeStocks.map((s: any) => s.Code)
 
-    // 営業日（土日を除く）のリストを30日分作成
+    // 営業日（土日を除く）のリストを作成
+    // 四半期決算は約91日ごとに発表されるため、最低でも1四半期分+バッファを確保する
+    const LOOKBACK_BUSINESS_DAYS = 70 // 約98暦日 ≒ 1四半期(91日) + 余裕
     const businessDays: string[] = []
     {
       const cursor = new Date(today)
       cursor.setDate(cursor.getDate() - 1) // 今日は決算未確定の可能性があるため前日から
-      while (businessDays.length < 30) {
+      while (businessDays.length < LOOKBACK_BUSINESS_DAYS) {
         if (cursor.getDay() !== 0 && cursor.getDay() !== 6) {
           businessDays.push(cursor.toISOString().split('T')[0])
         }
@@ -98,7 +96,7 @@ export async function GET(req: NextRequest) {
       let dayCount = 0
       do {
         const url: string = `https://api.jquants.com/v2/fins/summary?date=${day}${paginationKey ? `&pagination_key=${paginationKey}` : ''}`
-        const finRes = await fetchWithRetry(url, { 'x-api-key': apiKey })
+        const finRes = await fetchWithRetry(url, { 'x-api-key': apiKey})
         const finJson = await finRes.json()
         if (page === 0 && finJson.message) {
           console.log(`fins/summary ${day} error message:`, finJson.message)
@@ -116,6 +114,7 @@ export async function GET(req: NextRequest) {
       dailyCounts[day] = dayCount
     }
     console.log('fins/summary daily counts:', JSON.stringify(dailyCounts))
+    console.log('fins/summary lookback days:', LOOKBACK_BUSINESS_DAYS, 'total unique codes:', Object.keys(finMap).length)
 
     const priceMap: Record<string, number> = {}
     const dateHyphen = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`
