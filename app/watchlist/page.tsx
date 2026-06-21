@@ -14,10 +14,44 @@ type WatchlistItem = {
   history: HistoryEntry[]
 }
 
+type CryptoHistoryEntry = {
+  timestamp: string
+  rsi: number | null
+  volumeRatio: number | null
+  price: number | null
+  triggered: boolean
+  reason: string
+  notified?: boolean
+}
+
+type CryptoPairStatus = {
+  productCode: string
+  price: number | null
+  rsi: number | null
+  volumeRatio: number | null
+  candleCount: number
+  lastSignal: { timestamp: string; message: string } | null
+  history: CryptoHistoryEntry[]
+  updatedAt: string | null
+}
+
+function formatCryptoPrice(productCode: string, price: number | null): string {
+  if (price == null) return '—'
+  if (productCode.endsWith('_JPY')) return `¥${Math.round(price).toLocaleString('ja-JP')}`
+  return price.toLocaleString('ja-JP', { maximumFractionDigits: 8 })
+}
+
+function formatJST(iso: string): string {
+  return new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
 export default function WatchlistPage() {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([])
+  const [cryptoStatuses, setCryptoStatuses] = useState<CryptoPairStatus[]>([])
   const [loading, setLoading] = useState(true)
+  const [cryptoLoading, setCryptoLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [cryptoExpanded, setCryptoExpanded] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/watchlist')
@@ -27,6 +61,14 @@ export default function WatchlistPage() {
         setLoading(false)
       })
       .catch(() => setLoading(false))
+
+    fetch('/api/settings/crypto')
+      .then(r => r.json())
+      .then(d => {
+        setCryptoStatuses(d.statuses ?? [])
+        setCryptoLoading(false)
+      })
+      .catch(() => setCryptoLoading(false))
   }, [])
 
   const getLatestSignal = (history: HistoryEntry[]) => {
@@ -112,6 +154,105 @@ export default function WatchlistPage() {
                                   ))
                                 ) : (
                                   <span style={{ fontSize: 12, color: '#4B5563' }}>✓ シグナルなし</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <div style={{ marginTop: 48, marginBottom: 32 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 600, color: '#E8E4D9', margin: 0 }}>Crypto</h2>
+          <p style={{ fontSize: 11, color: '#6B7280', margin: '4px 0 0', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+            bitFlyer Signal
+          </p>
+          <p style={{ fontSize: 12, color: '#4B5563', marginTop: 8 }}>RSI・出来高シグナル（5分足）</p>
+        </div>
+
+        {cryptoLoading ? (
+          <div style={{ color: '#4B5563', fontSize: 14, textAlign: 'center', paddingTop: 24 }}>読み込み中...</div>
+        ) : cryptoStatuses.length === 0 ? (
+          <div style={{ color: '#4B5563', fontSize: 14, textAlign: 'center', paddingTop: 24 }}>
+            監視ペアが設定されていません。
+            <br />
+            <a href="/settings" style={{ color: '#818CF8', marginTop: 8, display: 'inline-block', fontSize: 13, textDecoration: 'none' }}>
+              設定画面で追加する →
+            </a>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {cryptoStatuses.map(item => {
+              const latestSignal = item.history.find(h => h.triggered)
+              const isExpanded = cryptoExpanded === item.productCode
+
+              return (
+                <div key={item.productCode} style={{
+                  background: 'rgba(255,255,255,0.02)',
+                  border: `0.5px solid ${latestSignal ? 'rgba(129,140,248,0.3)' : 'rgba(255,255,255,0.07)'}`,
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                }}>
+                  <div
+                    onClick={() => setCryptoExpanded(isExpanded ? null : item.productCode)}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', cursor: 'pointer' }}
+                  >
+                    <div>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: '#E8E4D9' }}>{item.productCode}</span>
+                      <span style={{ fontSize: 11, color: '#818CF8', marginLeft: 8 }}>{formatCryptoPrice(item.productCode, item.price)}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <div style={{ textAlign: 'right', fontSize: 11, color: '#6B7280' }}>
+                        <div>RSI {item.rsi ?? '—'}</div>
+                        <div>Vol {item.volumeRatio != null ? `${item.volumeRatio}x` : '—'}</div>
+                      </div>
+                      {item.lastSignal ? (
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 11, color: '#4B5563', marginBottom: 2 }}>{formatJST(item.lastSignal.timestamp)}</div>
+                          <div style={{ fontSize: 12, color: '#818CF8' }}>🔔 通知済み</div>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 12, color: '#4B5563' }}>シグナルなし</span>
+                      )}
+                      <span style={{ color: '#4B5563', fontSize: 11, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', display: 'inline-block' }}>▼</span>
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.06)', padding: '14px 18px' }}>
+                      <p style={{ fontSize: 11, color: '#4B5563', margin: '0 0 12px' }}>
+                        5分足 {item.candleCount}本
+                        {item.updatedAt ? ` · 更新 ${formatJST(item.updatedAt)}` : ''}
+                      </p>
+                      {item.history.length === 0 ? (
+                        <p style={{ fontSize: 12, color: '#4B5563', margin: 0 }}>まだ履歴がありません。Cron実行後に表示されます。</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {item.history.slice(0, 10).map((entry, i) => (
+                            <div key={i} style={{
+                              display: 'flex', gap: 16, padding: '10px 14px',
+                              background: entry.triggered ? 'rgba(129,140,248,0.05)' : 'rgba(255,255,255,0.01)',
+                              border: `0.5px solid ${entry.triggered ? 'rgba(129,140,248,0.15)' : 'rgba(255,255,255,0.04)'}`,
+                              borderRadius: 8,
+                            }}>
+                              <div style={{ fontSize: 11, color: '#4B5563', flexShrink: 0, minWidth: 100 }}>{formatJST(entry.timestamp)}</div>
+                              <div style={{ flex: 1, fontSize: 12 }}>
+                                <div style={{ color: '#9CA3AF', marginBottom: 2 }}>
+                                  RSI {entry.rsi ?? '—'} · Vol {entry.volumeRatio != null ? `${entry.volumeRatio}x` : '—'}
+                                  {entry.price != null ? ` · ${formatCryptoPrice(item.productCode, entry.price)}` : ''}
+                                </div>
+                                {entry.triggered ? (
+                                  <div style={{ color: '#818CF8' }}>
+                                    🔔 {entry.reason}{entry.notified ? '（LINE通知済）' : ''}
+                                  </div>
+                                ) : (
+                                  <span style={{ color: '#4B5563' }}>✓ {entry.reason}</span>
                                 )}
                               </div>
                             </div>

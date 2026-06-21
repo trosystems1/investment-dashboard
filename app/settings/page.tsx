@@ -53,6 +53,27 @@ interface WatchlistItem {
   history: HistoryEntry[]
 }
 
+interface CryptoSettings {
+  productCodes: string[]
+  rsiPeriod: number
+  rsiThreshold: number
+  volumeLookback: number
+  volumeMultiplier: number
+  notifyCooldownMinutes: number
+  enabled: boolean
+}
+
+interface CryptoLastRun {
+  timestamp: string
+  results: Array<{
+    productCode: string
+    newExecutions: number
+    candleCount: number
+    evaluation: { rsi: number | null; volumeRatio: number | null; triggered: boolean; reason: string }
+    notified: boolean
+  }>
+}
+
 export default function SettingsPage() {
   const [tickers, setTickers] = useState<string[]>([])
   const [nameMap, setNameMap] = useState<Record<string, string>>(BUILTIN_NAMES)
@@ -68,6 +89,20 @@ export default function SettingsPage() {
   const [rulesSaved, setRulesSaved] = useState(false)
   const [lastRun, setLastRun] = useState<LastRun | null>(null)
   const [watchlistHistory, setWatchlistHistory] = useState<WatchlistItem[]>([])
+
+  const [cryptoSettings, setCryptoSettings] = useState<CryptoSettings>({
+    productCodes: ['BTC_JPY'],
+    rsiPeriod: 14,
+    rsiThreshold: 30,
+    volumeLookback: 12,
+    volumeMultiplier: 3,
+    notifyCooldownMinutes: 30,
+    enabled: true,
+  })
+  const [cryptoProductInput, setCryptoProductInput] = useState('')
+  const [cryptoSaving, setCryptoSaving] = useState(false)
+  const [cryptoSaved, setCryptoSaved] = useState(false)
+  const [cryptoLastRun, setCryptoLastRun] = useState<CryptoLastRun | null>(null)
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -104,6 +139,13 @@ export default function SettingsPage() {
     fetch('/api/watchlist')
       .then((r) => r.json())
       .then((d) => setWatchlistHistory(d.watchlist ?? []))
+      .catch(() => {})
+    fetch('/api/settings/crypto')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.settings) setCryptoSettings(d.settings)
+        if (d.lastRun) setCryptoLastRun(d.lastRun)
+      })
       .catch(() => {})
   }, [])
 
@@ -169,6 +211,34 @@ export default function SettingsPage() {
     setRulesSaving(false)
     setRulesSaved(true)
     setTimeout(() => setRulesSaved(false), 2000)
+  }
+
+  const addCryptoProduct = (code: string) => {
+    const trimmed = code.trim().toUpperCase()
+    if (!trimmed || cryptoSettings.productCodes.includes(trimmed)) return
+    setCryptoSettings((prev) => ({ ...prev, productCodes: [...prev.productCodes, trimmed] }))
+    setCryptoProductInput('')
+  }
+
+  const removeCryptoProduct = (code: string) => {
+    setCryptoSettings((prev) => ({
+      ...prev,
+      productCodes: prev.productCodes.filter((c) => c !== code),
+    }))
+  }
+
+  const saveCrypto = async () => {
+    setCryptoSaving(true)
+    const res = await fetch('/api/settings/crypto', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cryptoSettings),
+    })
+    const data = await res.json()
+    if (data.settings) setCryptoSettings(data.settings)
+    setCryptoSaving(false)
+    setCryptoSaved(true)
+    setTimeout(() => setCryptoSaved(false), 2000)
   }
 
   const ruleBtn = (active: boolean, disabled = false): React.CSSProperties => ({
@@ -474,6 +544,146 @@ export default function SettingsPage() {
             )}
           </div>
         )}
+
+        <div style={{ background: '#141414', border: '1px solid #4338ca', borderRadius: 8, padding: '1.5rem', marginBottom: '1.5rem' }}>
+          <h2 style={{ color: '#818cf8', fontSize: '0.8rem', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>
+            暗号資産シグナル（bitFlyer）
+          </h2>
+          <p style={{ color: '#666', fontSize: '0.8rem', marginBottom: '1rem' }}>
+            5分足 RSI + 出来高スパイク検知。外部Cron（5分おき）で <code style={{ color: '#888' }}>/api/cron/crypto-signal</code> を呼び出します。
+          </p>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '1rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+            <input
+              type="checkbox"
+              checked={cryptoSettings.enabled}
+              onChange={(e) => setCryptoSettings((prev) => ({ ...prev, enabled: e.target.checked }))}
+            />
+            暗号資産シグナルを有効にする
+          </label>
+
+          <p style={{ color: '#888', fontSize: '0.8rem', margin: '0 0 0.5rem' }}>監視ペア（product_code）</p>
+          <div style={{ display: 'flex', gap: 8, marginBottom: '0.75rem' }}>
+            <input
+              value={cryptoProductInput}
+              onChange={(e) => setCryptoProductInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addCryptoProduct(cryptoProductInput)}
+              placeholder="BTC_JPY, ETH_BTC など"
+              style={{
+                flex: 1,
+                background: '#1a1a1a',
+                border: '1px solid #333',
+                borderRadius: 4,
+                color: '#e5e0d0',
+                padding: '0.6rem 0.75rem',
+                fontSize: '0.9rem',
+                outline: 'none',
+              }}
+            />
+            <button
+              onClick={() => addCryptoProduct(cryptoProductInput)}
+              disabled={!cryptoProductInput.trim()}
+              style={ruleBtn(false, !cryptoProductInput.trim())}
+            >
+              追加
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: '1rem' }}>
+            {cryptoSettings.productCodes.map((code) => (
+              <span
+                key={code}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'rgba(129,140,248,0.1)',
+                  border: '1px solid rgba(129,140,248,0.3)',
+                  borderRadius: 4,
+                  padding: '0.3rem 0.6rem',
+                  fontSize: '0.85rem',
+                  color: '#818cf8',
+                }}
+              >
+                {code}
+                <button
+                  onClick={() => removeCryptoProduct(code)}
+                  style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, lineHeight: 1 }}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: '1rem' }}>
+            {[
+              { key: 'rsiPeriod' as const, label: 'RSI期間', step: 1 },
+              { key: 'rsiThreshold' as const, label: 'RSI閾値（未満でシグナル）', step: 1 },
+              { key: 'volumeLookback' as const, label: '出来高平均本数', step: 1 },
+              { key: 'volumeMultiplier' as const, label: '出来高倍率', step: 0.1 },
+              { key: 'notifyCooldownMinutes' as const, label: '再通知クールダウン（分）', step: 5 },
+            ].map(({ key, label, step }) => (
+              <label key={key} style={{ fontSize: '0.8rem', color: '#888' }}>
+                {label}
+                <input
+                  type="number"
+                  step={step}
+                  value={cryptoSettings[key]}
+                  onChange={(e) =>
+                    setCryptoSettings((prev) => ({ ...prev, [key]: Number(e.target.value) }))
+                  }
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    marginTop: 4,
+                    background: '#1a1a1a',
+                    border: '1px solid #333',
+                    borderRadius: 4,
+                    color: '#e5e0d0',
+                    padding: '0.5rem 0.75rem',
+                    fontSize: '0.9rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </label>
+            ))}
+          </div>
+
+          <button
+            onClick={saveCrypto}
+            disabled={cryptoSaving || cryptoSettings.productCodes.length === 0}
+            style={ruleBtn(cryptoSaved, cryptoSaving || cryptoSettings.productCodes.length === 0)}
+          >
+            {cryptoSaving ? '保存中...' : cryptoSaved ? '✓ 保存しました' : '暗号資産設定を保存'}
+          </button>
+
+          {cryptoLastRun && (
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #2a2a2a' }}>
+              <p style={{ fontSize: '0.75rem', color: '#666', margin: '0 0 8px' }}>最終Cron実行</p>
+              <p style={{ fontSize: '0.85rem', color: '#888', margin: '0 0 8px' }}>
+                {new Date(cryptoLastRun.timestamp).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}
+              </p>
+              {cryptoLastRun.results.map((r) => (
+                <div
+                  key={r.productCode}
+                  style={{
+                    background: '#1a1a1a',
+                    border: '1px solid #2a2a2a',
+                    borderRadius: 4,
+                    padding: '0.5rem 0.75rem',
+                    fontSize: '0.85rem',
+                    color: '#ccc',
+                    marginTop: 6,
+                  }}
+                >
+                  <strong style={{ color: '#818cf8' }}>{r.productCode}</strong>
+                  {' '}· {r.candleCount}本 · RSI {r.evaluation.rsi ?? '—'} · Vol {r.evaluation.volumeRatio ?? '—'}x
+                  {r.evaluation.triggered ? (r.notified ? ' · 🔔 通知済' : ' · シグナル（クールダウン中）') : ' · ✓ なし'}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div style={{ paddingTop: '1.5rem', borderTop: '1px solid #2a2a2a' }}>
           <a href="/" style={{ color: '#c49c48', fontSize: '0.85rem', textDecoration: 'none' }}>
