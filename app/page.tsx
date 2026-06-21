@@ -6,6 +6,7 @@ import InvestorTypesChart from '@/components/InvestorTypesChart'
 import TopixChart from '@/components/TopixChart'
 import NenkinRanking from '@/components/NenkinRanking'
 import PerRanking from '@/components/PerRanking'
+import CryptoDashboard from '@/components/CryptoDashboard'
 
 interface SignalRun {
   timestamp: string
@@ -191,6 +192,17 @@ export default function Dashboard() {
             )}
           </a>
         )}
+
+        {/* Crypto（bitFlyer） */}
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(129,140,248,0.2)', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+          <div style={{ marginBottom: 16 }}>
+            <h3 style={{ fontSize: 14, color: '#B8B4A8', fontWeight: 500, margin: 0 }}>Crypto</h3>
+            <p style={{ fontSize: 11, color: '#6B7280', margin: '4px 0 0', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+              bitFlyer · 5分足 RSI / 出来高
+            </p>
+          </div>
+          <CryptoDashboard />
+        </div>
 
         {/* 投資部門別 */}
         <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 20, marginBottom: 16 }}>

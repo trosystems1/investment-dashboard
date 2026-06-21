@@ -76,15 +76,20 @@ export default function CryptoCharts({ productCode }: { productCode: string }) {
     setLoading(true)
     setError(null)
     fetch(`/api/crypto/chart?product_code=${encodeURIComponent(productCode)}&limit=100`)
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.error) {
-          setError(json.error)
+      .then(async (r) => {
+        const json = await r.json()
+        if (!r.ok) {
+          setError(json.error ?? `HTTP ${r.status}`)
           setData([])
           return
         }
         const raw = (json.candles ?? []) as Array<Omit<ChartCandle, 'label' | 'volSpike'>>
-        const avgVol = raw.length > 0 ? raw.reduce((s, c) => s + c.volume, 0) / raw.length : 0
+        if (raw.length === 0) {
+          setError(null)
+          setData([])
+          return
+        }
+        const avgVol = raw.reduce((s, c) => s + c.volume, 0) / raw.length
         setData(
           raw.map((c) => ({
             ...c,
@@ -119,11 +124,12 @@ export default function CryptoCharts({ productCode }: { productCode: string }) {
   }
 
   return (
-    <div style={{ marginBottom: 20 }}>
+    <div style={{ marginBottom: 20, width: '100%', minWidth: 0 }}>
       <p style={{ fontSize: 11, color: '#6B7280', letterSpacing: '0.08em', margin: '0 0 8px', textTransform: 'uppercase' }}>
         価格・出来高（5分足 {data.length}本）
       </p>
-      <ResponsiveContainer width="100%" height={200}>
+      <div style={{ width: '100%', height: 200, minWidth: 0 }}>
+        <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
           <defs>
             <linearGradient id={`cryptoPrice-${productCode}`} x1="0" y1="0" x2="0" y2="1">
@@ -159,7 +165,8 @@ export default function CryptoCharts({ productCode }: { productCode: string }) {
             ))}
           </Bar>
         </ComposedChart>
-      </ResponsiveContainer>
+        </ResponsiveContainer>
+      </div>
 
       <p style={{ fontSize: 11, color: '#6B7280', letterSpacing: '0.08em', margin: '16px 0 8px', textTransform: 'uppercase' }}>
         RSI(14)
@@ -167,7 +174,8 @@ export default function CryptoCharts({ productCode }: { productCode: string }) {
       {rsiData.length === 0 ? (
         <p style={{ fontSize: 12, color: '#4B5563', margin: 0 }}>RSI計算に必要な足数が不足しています。</p>
       ) : (
-        <ResponsiveContainer width="100%" height={140}>
+        <div style={{ width: '100%', height: 140, minWidth: 0 }}>
+          <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rsiData} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
             <XAxis dataKey="label" tick={{ fill: '#4B5563', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
@@ -178,7 +186,8 @@ export default function CryptoCharts({ productCode }: { productCode: string }) {
             <Tooltip content={<RsiTooltip />} />
             <Line type="monotone" dataKey="rsi" stroke="#818CF8" strokeWidth={2} dot={false} connectNulls />
           </LineChart>
-        </ResponsiveContainer>
+          </ResponsiveContainer>
+        </div>
       )}
     </div>
   )

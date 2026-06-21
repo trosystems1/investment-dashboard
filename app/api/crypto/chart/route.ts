@@ -13,8 +13,9 @@ export async function GET(req: Request) {
   if (limit > MAX_LIMIT) limit = MAX_LIMIT
 
   const settings = await getCryptoSettings()
-  if (!settings.productCodes.includes(productCode)) {
-    return NextResponse.json({ error: 'Unknown product_code' }, { status: 400 })
+  const allowed = new Set(settings.productCodes)
+  if (!allowed.has(productCode)) {
+    return NextResponse.json({ error: `product_code not configured: ${productCode}` }, { status: 400 })
   }
 
   const candles = await getCandles(productCode)
