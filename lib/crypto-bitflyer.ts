@@ -145,7 +145,43 @@ export function mergeCandles(existing: CryptoCandle[], incoming: CryptoCandle[])
   return [...map.values()].sort((a, b) => a.time.localeCompare(b.time)).slice(-MAX_CANDLES)
 }
 
-/** Wilder RSI */
+/** Wilder RSI — candles 配列全体の逐次 RSI（先頭 period 本は null） */
+export function calculateRSISeries(candles: CryptoCandle[], period = 14): (number | null)[] {
+  const result: (number | null)[] = new Array(candles.length).fill(null)
+  if (candles.length < period + 1) return result
+
+  const closes = candles.map((c) => c.close)
+  let avgGain = 0
+  let avgLoss = 0
+  for (let i = 1; i <= period; i++) {
+    const diff = closes[i] - closes[i - 1]
+    if (diff >= 0) avgGain += diff
+    else avgLoss -= diff
+  }
+  avgGain /= period
+  avgLoss /= period
+
+  const toRsi = (ag: number, al: number): number => {
+    if (al === 0) return 100
+    const rs = ag / al
+    return Math.round((100 - 100 / (1 + rs)) * 100) / 100
+  }
+
+  result[period] = toRsi(avgGain, avgLoss)
+
+  for (let i = period + 1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1]
+    const gain = diff > 0 ? diff : 0
+    const loss = diff < 0 ? -diff : 0
+    avgGain = (avgGain * (period - 1) + gain) / period
+    avgLoss = (avgLoss * (period - 1) + loss) / period
+    result[i] = toRsi(avgGain, avgLoss)
+  }
+
+  return result
+}
+
+/** Wilder RSI（最新1点） */
 export function calculateRSI(closes: number[], period: number): number | null {
   if (closes.length < period + 1) return null
 

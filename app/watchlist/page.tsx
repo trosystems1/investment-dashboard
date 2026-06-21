@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import CryptoCharts from '@/components/CryptoCharts'
 
 type HistoryEntry = {
   date: string
@@ -52,6 +53,7 @@ export default function WatchlistPage() {
   const [cryptoLoading, setCryptoLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [cryptoExpanded, setCryptoExpanded] = useState<string | null>(null)
+  const [signalsOnly, setSignalsOnly] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     fetch('/api/watchlist')
@@ -226,37 +228,77 @@ export default function WatchlistPage() {
 
                   {isExpanded && (
                     <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.06)', padding: '14px 18px' }}>
+                      <CryptoCharts productCode={item.productCode} />
                       <p style={{ fontSize: 11, color: '#4B5563', margin: '0 0 12px' }}>
                         5分足 {item.candleCount}本
                         {item.updatedAt ? ` · 更新 ${formatJST(item.updatedAt)}` : ''}
                       </p>
+
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <span style={{ fontSize: 11, color: '#6B7280', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                          シグナル履歴
+                        </span>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9CA3AF', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={signalsOnly[item.productCode] ?? false}
+                            onChange={(e) =>
+                              setSignalsOnly((prev) => ({ ...prev, [item.productCode]: e.target.checked }))
+                            }
+                          />
+                          シグナルのみ
+                        </label>
+                      </div>
+
                       {item.history.length === 0 ? (
                         <p style={{ fontSize: 12, color: '#4B5563', margin: 0 }}>まだ履歴がありません。Cron実行後に表示されます。</p>
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {item.history.slice(0, 10).map((entry, i) => (
-                            <div key={i} style={{
-                              display: 'flex', gap: 16, padding: '10px 14px',
-                              background: entry.triggered ? 'rgba(129,140,248,0.05)' : 'rgba(255,255,255,0.01)',
-                              border: `0.5px solid ${entry.triggered ? 'rgba(129,140,248,0.15)' : 'rgba(255,255,255,0.04)'}`,
-                              borderRadius: 8,
-                            }}>
-                              <div style={{ fontSize: 11, color: '#4B5563', flexShrink: 0, minWidth: 100 }}>{formatJST(entry.timestamp)}</div>
-                              <div style={{ flex: 1, fontSize: 12 }}>
-                                <div style={{ color: '#9CA3AF', marginBottom: 2 }}>
-                                  RSI {entry.rsi ?? '—'} · Vol {entry.volumeRatio != null ? `${entry.volumeRatio}x` : '—'}
-                                  {entry.price != null ? ` · ${formatCryptoPrice(item.productCode, entry.price)}` : ''}
-                                </div>
-                                {entry.triggered ? (
-                                  <div style={{ color: '#818CF8' }}>
-                                    🔔 {entry.reason}{entry.notified ? '（LINE通知済）' : ''}
-                                  </div>
-                                ) : (
-                                  <span style={{ color: '#4B5563' }}>✓ {entry.reason}</span>
-                                )}
-                              </div>
+                        <div
+                          style={{
+                            maxHeight: 320,
+                            overflowY: 'auto',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 6,
+                            paddingRight: 4,
+                          }}
+                        >
+                          {(signalsOnly[item.productCode]
+                            ? item.history.filter((h) => h.triggered)
+                            : item.history.slice(0, 50)
+                          ).map((entry, i) => (
+                            <div
+                              key={i}
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: '100px 1fr auto',
+                                gap: 12,
+                                alignItems: 'center',
+                                padding: '8px 12px',
+                                background: entry.triggered ? 'rgba(251,146,60,0.08)' : 'rgba(255,255,255,0.01)',
+                                border: `0.5px solid ${entry.triggered ? 'rgba(251,146,60,0.25)' : 'rgba(255,255,255,0.04)'}`,
+                                borderRadius: 8,
+                                fontSize: 11,
+                              }}
+                            >
+                              <span style={{ color: '#4B5563' }}>{formatJST(entry.timestamp)}</span>
+                              <span style={{ color: '#9CA3AF' }}>
+                                {formatCryptoPrice(item.productCode, entry.price)}
+                                {' · '}RSI {entry.rsi ?? '—'}
+                                {' · '}Vol {entry.volumeRatio != null ? `${entry.volumeRatio}x` : '—'}
+                              </span>
+                              <span style={{ color: entry.triggered ? '#FB923C' : '#4B5563', whiteSpace: 'nowrap' }}>
+                                {entry.triggered ? `🔔${entry.notified ? ' LINE' : ''}` : '—'}
+                              </span>
                             </div>
                           ))}
+                          {(signalsOnly[item.productCode]
+                            ? item.history.filter((h) => h.triggered).length === 0
+                            : false) && (
+                            <p style={{ fontSize: 12, color: '#4B5563', margin: 0, textAlign: 'center', padding: 12 }}>
+                              シグナル履歴はありません
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>

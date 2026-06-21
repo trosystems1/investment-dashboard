@@ -121,7 +121,7 @@ export async function appendHistory(
 ): Promise<void> {
   const history = await getHistory(productCode)
   history.unshift(entry)
-  await redis.set(historyKey(productCode), history.slice(0, 30))
+  await redis.set(historyKey(productCode), history.slice(0, 50))
 }
 
 export async function getLastRun(): Promise<CryptoLastRun | null> {
