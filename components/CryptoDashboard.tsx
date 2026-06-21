@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import CryptoCharts from '@/components/CryptoCharts'
+import CryptoMacroPanel from '@/components/CryptoMacroPanel'
 
 type CryptoHistoryEntry = {
   timestamp: string
@@ -198,6 +199,10 @@ export default function CryptoDashboard() {
           5分足データは Cron 実行後に蓄積されます（cron-job.org → /api/cron/crypto-signal）
         </p>
       )}
+
+      <div style={{ borderTop: '0.5px solid rgba(255,255,255,0.08)', paddingTop: 24, marginTop: 8 }}>
+        <CryptoMacroPanel />
+      </div>
     </div>
   )
 }
