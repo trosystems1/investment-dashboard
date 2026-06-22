@@ -5,13 +5,13 @@ import { useSession, signOut } from 'next-auth/react'
 import Link from 'next/link'
 
 const NAV_ITEMS = [
-  { label: 'Market',    href: '/' },
-  { label: 'Portfolio', href: '/portfolio' },
-  { label: 'Screener',  href: '/screener' },
-  { label: 'Watchlist', href: '/watchlist' },
-  { label: '分析',       href: '/analysis' },
-  { label: 'コメント',   href: '/analyst-comments' },
-  { label: 'Settings',  href: '/settings' },
+  { label: 'ホーム',       href: '/' },
+  { label: 'ウォッチリスト', href: '/watchlist' },
+  { label: 'コメント',     href: '/analyst-comments' },
+  { label: 'ポートフォリオ', href: '/portfolio' },
+  { label: 'アナリシス',   href: '/analysis' },
+  { label: 'スクリーナー', href: '/screener' },
+  { label: 'セッティング', href: '/settings' },
 ]
 
 export default function GlobalNav() {
