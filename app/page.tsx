@@ -5,6 +5,7 @@ import InvestorTypesChart from '@/components/InvestorTypesChart'
 import TopixChart from '@/components/TopixChart'
 import NenkinRanking from '@/components/NenkinRanking'
 import CryptoDashboard from '@/components/CryptoDashboard'
+import DailySummaryCard from '@/components/DailySummaryCard'
 
 interface SignalRun {
   timestamp: string
@@ -34,6 +35,8 @@ export default function Dashboard() {
           <p style={{ fontSize: 11, color: '#6B7280', margin: '4px 0 0', letterSpacing: '1.5px', textTransform: 'uppercase' }}>Market Overview & Crypto</p>
           <div style={{ width: 32, height: 2, background: 'linear-gradient(to right, #C49C48, transparent)', borderRadius: 1, marginTop: 8 }} />
         </div>
+
+        <DailySummaryCard />
 
         {signalRun && (
           <a href="/settings" style={{
