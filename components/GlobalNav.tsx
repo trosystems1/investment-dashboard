@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { label: 'Screener',  href: '/screener' },
   { label: 'Watchlist', href: '/watchlist' },
   { label: '分析',       href: '/analysis' },
+  { label: 'コメント',   href: '/analyst-comments' },
   { label: 'Settings',  href: '/settings' },
 ]
 

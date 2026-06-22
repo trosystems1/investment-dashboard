@@ -18,6 +18,7 @@ import {
   setLastSignal,
 } from '@/lib/crypto-signal-store'
 import { sendLINE } from '@/lib/line'
+import { saveAnalystComment, commentDateJST } from '@/lib/analyst-comments'
 
 export const maxDuration = 60
 
@@ -149,6 +150,37 @@ export async function GET(req: Request) {
   }
 
   await setLastRun({ timestamp, results })
+
+  const commentDate = commentDateJST()
+  const triggered = results.filter((r) => r.evaluation.triggered)
+  const lines = results.map((r) => {
+    const ev = r.evaluation
+    const status = ev.triggered
+      ? r.notified
+        ? '🔔 LINE通知'
+        : 'シグナル（クールダウン中）'
+      : ev.reason
+    return `${r.productCode}: RSI ${ev.rsi ?? '—'}, Vol ${ev.volumeRatio ?? '—'}x — ${status}`
+  })
+  const cryptoContent = [`仮想通貨シグナルチェック (${commentDate})`, '', ...lines].join('\n')
+
+  await saveAnalystComment({
+    source: 'crypto_signal',
+    comment_date: commentDate,
+    title: triggered.length > 0 ? `Cryptoシグナル ${triggered.length}件` : 'Cryptoチェック',
+    content: cryptoContent,
+    metadata: {
+      triggeredCount: triggered.length,
+      productCount: results.length,
+      results: results.map((r) => ({
+        productCode: r.productCode,
+        triggered: r.evaluation.triggered,
+        notified: r.notified,
+        rsi: r.evaluation.rsi,
+        volumeRatio: r.evaluation.volumeRatio,
+      })),
+    },
+  })
 
   return NextResponse.json({ timestamp, results })
 }

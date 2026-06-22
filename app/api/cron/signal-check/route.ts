@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
 import { sendLINE } from '@/lib/line';
 import { buildSignalsFromHistory, dateJST } from '@/lib/signal-run';
+import { saveAnalystComment } from '@/lib/analyst-comments';
 
 const redis = Redis.fromEnv();
 
@@ -153,6 +154,25 @@ SIGNAL: [ルール番号] [シグナル名] - [理由を1行で]
     signals: reconciledSignals,
     tickerCount: tickers.length,
     ruleCount: activeRules.length,
+  });
+
+  const commentDate = today.replace(/\//g, '-');
+  const stockContent =
+    reconciledSignals.length > 0
+      ? `🔔 株価シグナル検出 (${today})\n\n${reconciledSignals.join('\n\n')}`
+      : `✓ 株価シグナルなし (${today}) — ${tickers.length}銘柄チェック`;
+
+  await saveAnalystComment({
+    source: 'stock_signal',
+    comment_date: commentDate,
+    title: reconciledSignals.length > 0 ? `株シグナル ${reconciledSignals.length}件` : '株シグナルなし',
+    content: stockContent,
+    metadata: {
+      signalCount: reconciledSignals.length,
+      tickerCount: tickers.length,
+      ruleCount: activeRules.length,
+      signals: reconciledSignals,
+    },
   });
 
   return NextResponse.json({

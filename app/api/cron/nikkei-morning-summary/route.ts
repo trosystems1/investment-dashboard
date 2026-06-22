@@ -5,6 +5,7 @@ import {
   saveMorningSummary,
   toSummaryRecord,
 } from '@/lib/nikkei-morning-summary'
+import { saveAnalystComment } from '@/lib/analyst-comments'
 
 export const maxDuration = 60
 
@@ -27,6 +28,23 @@ export async function GET(req: Request) {
 
     const record = toSummaryRecord(market, summaryText)
     await saveMorningSummary(record)
+
+    await saveAnalystComment({
+      source: 'nikkei_option',
+      comment_date: record.date,
+      title: `日経225オプション朝サマリー`,
+      content: summaryText,
+      metadata: {
+        nikkei_close: record.nikkei_close,
+        nikkei_change_pct: record.nikkei_change_pct,
+        nikkei_vi: record.nikkei_vi,
+        sp500_close: record.sp500_close,
+        vix_close: record.vix_close,
+        usdjpy: record.usdjpy,
+        sq_days_remaining: record.sq_days_remaining,
+        vi_high: market.viHigh,
+      },
+    })
 
     return NextResponse.json({
       ok: true,
