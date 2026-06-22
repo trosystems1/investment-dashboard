@@ -7,20 +7,22 @@
 import { config } from 'dotenv'
 config({ path: '.env.local' })
 
-import { Redis } from '@upstash/redis'
-import { saveAnalystComment } from '../lib/analyst-comments'
-import { listMorningSummaries } from '../lib/nikkei-morning-summary'
-import { getCryptoSettings, getHistory } from '../lib/crypto-signal-store'
-
 const DEFAULT_TICKERS = ['228A0', '43970', '43740', '431A0', '44430', '44780', '39940', '47760', '40580', '48110']
 
 function normalizeDate(d: string): string {
   return d.replace(/\//g, '-')
 }
 
-async function backfillNikkei() {
+async function main() {
+  const { Redis } = await import('@upstash/redis')
+  const { saveAnalystComment } = await import('../lib/analyst-comments')
+  const { listMorningSummaries } = await import('../lib/nikkei-morning-summary')
+  const { getCryptoSettings, getHistory } = await import('../lib/crypto-signal-store')
+
+  console.log('Backfilling analyst_comments...')
+
   const rows = await listMorningSummaries(400)
-  let count = 0
+  let nikkei = 0
   for (const row of rows) {
     if (!row.summary_text) continue
     const ok = await saveAnalystComment({
@@ -35,15 +37,13 @@ async function backfillNikkei() {
         backfill: true,
       },
     })
-    if (ok) count += 1
+    if (ok) nikkei += 1
   }
-  return count
-}
+  console.log(`  nikkei_option: ${nikkei} rows`)
 
-async function backfillStock(redis: Redis) {
+  const redis = Redis.fromEnv()
   const tickers = (await redis.get<string[]>('signal:watchlist')) ?? DEFAULT_TICKERS
   const byDate = new Map<string, string[]>()
-
   for (const ticker of tickers) {
     const [history, companyName] = await Promise.all([
       redis.get<Array<{ date: string; signals: string[] }>>(`signal:history:${ticker}`),
@@ -58,8 +58,7 @@ async function backfillStock(redis: Redis) {
       byDate.set(date, list)
     }
   }
-
-  let count = 0
+  let stock = 0
   for (const [date, signals] of byDate) {
     const ok = await saveAnalystComment({
       source: 'stock_signal',
@@ -68,15 +67,12 @@ async function backfillStock(redis: Redis) {
       content: `🔔 株価シグナル検出 (${date})\n\n${signals.join('\n\n')}`,
       metadata: { signalCount: signals.length, backfill: true },
     })
-    if (ok) count += 1
+    if (ok) stock += 1
   }
-  return count
-}
+  console.log(`  stock_signal: ${stock} days (signals only)`)
 
-async function backfillCrypto() {
   const settings = await getCryptoSettings()
-  const byDate = new Map<string, string[]>()
-
+  const cryptoByDate = new Map<string, string[]>()
   for (const productCode of settings.productCodes) {
     const history = await getHistory(productCode)
     for (const entry of history) {
@@ -84,37 +80,23 @@ async function backfillCrypto() {
       const line = `${entry.timestamp.slice(11, 16)} ${productCode}: RSI ${entry.rsi ?? '—'}, Vol ${entry.volumeRatio ?? '—'}x — ${
         entry.triggered ? (entry.notified ? '🔔' : 'シグナル') : entry.reason
       }`
-      const list = byDate.get(date) ?? []
+      const list = cryptoByDate.get(date) ?? []
       list.push(line)
-      byDate.set(date, list)
+      cryptoByDate.set(date, list)
     }
   }
-
-  let count = 0
-  for (const [date, lines] of byDate) {
+  let crypto = 0
+  for (const [date, lines] of cryptoByDate) {
     const triggered = lines.filter((l) => l.includes('🔔') || l.includes('シグナル'))
     const ok = await saveAnalystComment({
       source: 'crypto_signal',
       comment_date: date,
-      title: triggered.length > 0 ? `Cryptoシグナル（履歴）` : 'Cryptoチェック（履歴）',
+      title: triggered.length > 0 ? 'Cryptoシグナル（履歴）' : 'Cryptoチェック（履歴）',
       content: [`仮想通貨シグナル履歴 (${date})`, '', ...lines.reverse()].join('\n'),
       metadata: { backfill: true, lineCount: lines.length },
     })
-    if (ok) count += 1
+    if (ok) crypto += 1
   }
-  return count
-}
-
-async function main() {
-  console.log('Backfilling analyst_comments...')
-  const nikkei = await backfillNikkei()
-  console.log(`  nikkei_option: ${nikkei} rows`)
-
-  const redis = Redis.fromEnv()
-  const stock = await backfillStock(redis)
-  console.log(`  stock_signal: ${stock} days (signals only)`)
-
-  const crypto = await backfillCrypto()
   console.log(`  crypto_signal: ${crypto} days (Redis履歴の範囲内)`)
 
   console.log('Done. 復元できない期間は今後の Cron から記録されます。')
