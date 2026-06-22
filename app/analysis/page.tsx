@@ -1,6 +1,7 @@
 'use client'
 
 import PerRanking from '@/components/PerRanking'
+import NikkeiMorningSummary from '@/components/NikkeiMorningSummary'
 
 export default function AnalysisPage() {
   return (
@@ -11,7 +12,11 @@ export default function AnalysisPage() {
           <p style={{ fontSize: 11, color: '#6B7280', margin: '4px 0 0', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
             Equity Analysis
           </p>
-          <p style={{ fontSize: 12, color: '#4B5563', marginTop: 8 }}>銘柄スクリーニング・バリュエーション指標</p>
+          <p style={{ fontSize: 12, color: '#4B5563', marginTop: 8 }}>銘柄スクリーニング・バリュエーション・オプション向け市場サマリー</p>
+        </div>
+
+        <div style={{ marginBottom: 24 }}>
+          <NikkeiMorningSummary />
         </div>
 
         <PerRanking />
