@@ -1,0 +1,52 @@
+# 毎晩3時(JST)に ai-task ラベルのIssueを1件選び、実装してPRを出す自律ワークフロー
+# 手動実行も可能 (Actions タブ → Run workflow)
+name: Claude Nightly Autonomous Run
+
+on:
+  schedule:
+    - cron: "0 18 * * *" # UTC 18:00 = JST 翌3:00 (scheduleは数十分遅延することがある)
+  workflow_dispatch: {}
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            あなたはこのリポジトリの夜間自律開発エージェントです。以下の手順を厳守してください。
+
+            ## 手順
+            1. `gh issue list --label ai-task --state open --json number,title,labels,createdAt`
+               で未対応タスクを確認する。`priority:high` があればそれを、なければ最も古い1件を選ぶ。
+               対象がなければ「本日は対象タスクなし」とだけ判断し、何もせず終了する。
+            2. 選んだIssueに「🌙 夜間自律実行を開始します」とコメントし着手を宣言する。
+            3. CLAUDE.md / index.json / architecture.md があれば必ず先に読み、
+               プロジェクトの規約と構造を把握してから実装する。
+            4. `claude/issue-<番号>` ブランチを作成して実装する。
+            5. 型チェック・lint・テストが存在すれば必ず実行し、通してからコミットする。
+            6. PRを作成し、本文に日本語で以下を書く:
+               - 変更概要 / 対応Issue (Closes #番号)
+               - 人間が確認すべきポイント(動作確認手順)
+               - 残リスク・やらなかったこと
+            7. Issueに結果(PRリンク or 失敗理由)をコメントして終了する。
+
+            ## 禁止事項 (絶対)
+            - mainへの直接push、PRのマージ、force push
+            - .env・Secrets・認証情報の読み取り/出力
+            - 外部サービスへの投稿、課金が発生するAPI実行、本番デプロイ操作
+            - 1晩に2件以上のIssueへの着手
+            - テスト未実施のままのPR作成(テストが無いリポジトリではその旨をPRに明記)
+          claude_args: |
+            --max-turns 60

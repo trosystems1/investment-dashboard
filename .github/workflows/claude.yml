@@ -1,0 +1,39 @@
+# Issue/PR で「@claude 〜して」とコメントすると即時対応するワークフロー
+# 導入: このファイルを対象リポジトリの .github/workflows/ に置く
+# 認証: Secrets に CLAUDE_CODE_OAUTH_TOKEN (推奨) または ANTHROPIC_API_KEY を登録
+name: Claude Assistant
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # APIキー課金型を使う場合は上を消して下を有効化:
+          # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          additional_permissions: |
+            actions: read
+          claude_args: |
+            --max-turns 40
+            --system-prompt "回答・PR本文・コミットメッセージは日本語。mainへの直接push/mergeは禁止、変更は必ずPRで提案する。.envやSecretsの内容を読んだり出力したりしない。外部サービスへの投稿・課金が発生する操作(デプロイ本番昇格、レンダリングAPI実行等)は行わず、必要ならIssueコメントで人間に依頼する。"

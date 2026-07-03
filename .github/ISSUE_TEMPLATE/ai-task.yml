@@ -1,0 +1,35 @@
+name: AIタスク (夜間自律実行キュー)
+description: Claudeに任せるタスクを起票します。夜間バッチ or @claude メンションで処理されます。
+title: "[AI] "
+labels: ["ai-task"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: やってほしいこと (ゴール)
+      description: 完了条件がわかるように書く。「〜が〜になっていればOK」の形が理想。
+      placeholder: 例) lib/jquants-fetch.ts が429エラー時に指数バックオフで最大3回リトライし、失敗時はエラーをthrowするようにする
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: 背景・関連ファイル (任意)
+      placeholder: 例) 現状は429を握りつぶしている。screenerルートのリトライ実装を参考にしてよい。
+  - type: dropdown
+    id: risk
+    attributes:
+      label: 変更の影響範囲
+      options:
+        - 小 (単一ファイル・ロジック修正)
+        - 中 (複数ファイル・機能追加)
+        - 大 (構造変更・要相談) ※AIは着手前に設計案をIssueコメントで提示すること
+    validations:
+      required: true
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: 制約の確認
+      options:
+        - label: このタスクに外部投稿・課金操作・本番デプロイは含まれない
+          required: true
