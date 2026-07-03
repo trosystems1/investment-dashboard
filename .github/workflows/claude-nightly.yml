@@ -50,3 +50,5 @@ jobs:
             - テスト未実施のままのPR作成(テストが無いリポジトリではその旨をPRに明記)
           claude_args: |
             --max-turns 60
+            --allowedTools "Bash(git *),Bash(gh *),Edit,Write,MultiEdit,Replace,NotebookEdit,Bash(npm *),Bash(npx *)"
+            --permission-mode acceptEdits
