@@ -66,6 +66,14 @@
 |---|---|---|
 | `/api/cron` | 平日8時(UTC) | ウォッチリスト10銘柄の株価更新 |
 | `/api/cron/screener` | 平日18時(UTC) | プライム全銘柄データ更新（日本時間翌3時） |
+| `/api/cron/nikkei-morning-summary` | 毎日22時(UTC、日本時間7時) | 日経225オプション朝サマリー生成・Supabase保存 |
+| `/api/cron/aria-daily` | 毎日22時(UTC、日本時間7時) | ARIA向け「月次比較・日米連動」インサイト生成・Supabase保存 |
+
+## ARIA向けインサイトAPI (`/api/insights/aria-daily`)
+- ARIA(YouTube米国市況動画の自動生成パイプライン)向けに、S&P500/NASDAQの1ヶ月・3ヶ月騰落率、セクターETF別の1ヶ月騰落率、米国株の当日の値動きと翌営業日の日経225の反応の突き合わせ（相関係数・同方向判定）を計算する
+- 生成ロジックは `lib/aria-daily.ts`、Supabaseテーブルは `aria_daily_insights`（スキーマ: `scripts/aria-daily-insights.sql`）
+- 相関・連動判定は単純な手法であり、統計的な因果関係を主張するものではない
+- レスポンスは `facts: string[]`（日本語の短文配列、ナレーション素材向け）を含む
 
 ## ウォッチリスト銘柄
 `228A`, `4397`, `4374`, `431A`, `4443`, `4478`, `3994`, `4776`, `4058`, `4811`
