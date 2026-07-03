@@ -11,6 +11,18 @@ const CODE_MAP: Record<string, string> = {
   '3994': '39940', '4776': '47760', '4058': '40580', '4811': '48110',
 }
 
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+async function fetchWithRetry(url: string, headers: Record<string, string>, maxRetries = 3): Promise<Response> {
+  let res: Response
+  for (let i = 0; i <= maxRetries; i++) {
+    res = await fetch(url, { headers })
+    if (res.status !== 429) return res
+    if (i < maxRetries) await sleep(1000 * 2 ** i)
+  }
+  throw new Error('Rate limit exceeded after retries')
+}
+
 export async function fetchAndStore(codes: string[]) {
   const apiKey = process.env.JQUANTS_API_KEY!
   const today = new Date()
@@ -24,10 +36,10 @@ export async function fetchAndStore(codes: string[]) {
 
   for (const code of codes) {
     const jqCode = CODE_MAP[code] || code + '0'
+    const url = `https://api.jquants.com/v2/equities/bars/daily?code=${jqCode}&date=${dateStr}`
+    const res = await fetchWithRetry(url, { 'x-api-key': apiKey })
+    if (!res.ok) continue
     try {
-      const url = `https://api.jquants.com/v2/equities/bars/daily?code=${jqCode}&date=${dateStr}`
-      const res = await fetch(url, { headers: { 'x-api-key': apiKey } })
-      if (!res.ok) continue
       const json = await res.json()
       const data = json.data?.[0]
       if (!data) continue
