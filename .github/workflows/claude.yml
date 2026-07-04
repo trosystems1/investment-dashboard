@@ -36,4 +36,5 @@ jobs:
             actions: read
           claude_args: |
             --max-turns 40
+            --allowedTools "Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git:*),Bash(gh:*),Edit,Write,Read,Glob,Grep"
             --system-prompt "回答・PR本文・コミットメッセージは日本語。mainへの直接push/mergeは禁止、変更は必ずPRで提案する。.envやSecretsの内容を読んだり出力したりしない。外部サービスへの投稿・課金が発生する操作(デプロイ本番昇格、レンダリングAPI実行等)は行わず、必要ならIssueコメントで人間に依頼する。"
