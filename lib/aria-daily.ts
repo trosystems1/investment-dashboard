@@ -217,6 +217,23 @@ function formatSignedPercent(value: number): string {
   return `${value >= 0 ? 'プラス' : 'マイナス'}${Math.abs(value)}パーセント`
 }
 
+/**
+ * 騰落率の符号を判定する。`Math.sign` は丸め後の値が `0`/`-0` になるケースを
+ * 考慮していないため、方向ラベルと順行/逆行判定を同じ基準で揃えるために使う。
+ */
+function directionSign(pct: number): -1 | 0 | 1 {
+  if (pct > 0) return 1
+  if (pct < 0) return -1
+  return 0
+}
+
+function directionLabel(pct: number): '上昇' | '下落' | '横ばい' {
+  const sign = directionSign(pct)
+  if (sign > 0) return '上昇'
+  if (sign < 0) return '下落'
+  return '横ばい'
+}
+
 /** 人間可読な日本語の短文配列に変換する（ARIA動画のナレーション素材向け） */
 export function buildFacts(data: AriaDailyData): string[] {
   const facts: string[] = []
@@ -248,12 +265,23 @@ export function buildFacts(data: AriaDailyData): string[] {
 
   const { latestPair, correlation, sameDirectionCount, totalPairs } = data.coMovement
   if (latestPair) {
-    const usDirection = latestPair.usChangePct >= 0 ? '上昇' : '下落'
-    const sameDirection = Math.sign(latestPair.usChangePct) === Math.sign(latestPair.nikkeiChangePct)
-    const verb = sameDirection ? '波及' : '逆行'
-    facts.push(
-      `今回の米国株${usDirection}は翌営業日の日経225にも${verb}(${formatSignedPercent(latestPair.nikkeiChangePct)})`,
-    )
+    const usSign = directionSign(latestPair.usChangePct)
+    const nikkeiSign = directionSign(latestPair.nikkeiChangePct)
+    const usDirection = directionLabel(latestPair.usChangePct)
+    if (usSign === 0 || nikkeiSign === 0) {
+      // どちらかがほぼ変わらず(横ばい)の場合、「順行/逆行」と断定すると
+      // 矛盾した表現(例: 「上昇」なのに「逆行」)になり得るため中立的に記述する
+      const nikkeiDirection = directionLabel(latestPair.nikkeiChangePct)
+      facts.push(
+        `今回の米国株は${usDirection}(${formatSignedPercent(latestPair.usChangePct)})、翌営業日の日経225は${nikkeiDirection}(${formatSignedPercent(latestPair.nikkeiChangePct)})でした`,
+      )
+    } else {
+      const sameDirection = usSign === nikkeiSign
+      const verb = sameDirection ? '波及' : '逆行'
+      facts.push(
+        `今回の米国株${usDirection}は翌営業日の日経225にも${verb}(${formatSignedPercent(latestPair.nikkeiChangePct)})`,
+      )
+    }
   }
   if (correlation != null && totalPairs > 0) {
     facts.push(
