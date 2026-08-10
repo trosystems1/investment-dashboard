@@ -23,6 +23,10 @@
     {
       "path": "/api/cron/aria-daily",
       "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/cron/aria-benchmark",
+      "schedule": "0 19 * * 2,5"
     }
   ]
 }
