@@ -87,6 +87,14 @@ export default function WatchlistPage() {
             Signal History
           </p>
           <p style={{ fontSize: 12, color: '#4B5563', marginTop: 8 }}>銘柄ごとのシグナル検出履歴</p>
+          <a href="/watchlist/us" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14,
+            fontSize: 13, color: '#C49C48', textDecoration: 'none',
+            padding: '8px 14px', border: '0.5px solid rgba(196,156,72,0.3)',
+            borderRadius: 8, background: 'rgba(196,156,72,0.08)',
+          }}>
+            US Watchlist を見る →
+          </a>
         </div>
 
         {loading ? (
