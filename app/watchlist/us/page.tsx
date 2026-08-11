@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 
 type USQuote = {
   ticker: string
@@ -43,11 +43,11 @@ function Sparkline({ data, up }: { data: number[]; up: boolean }) {
   )
 }
 
-const thStyle: React.CSSProperties = {
+const thStyle: CSSProperties = {
   textAlign: 'right', fontSize: 10, color: '#6B7280', fontWeight: 500,
   padding: '0 10px 8px', letterSpacing: '0.5px', textTransform: 'uppercase',
 }
-const tdStyle: React.CSSProperties = { textAlign: 'right', fontSize: 13, padding: '10px' }
+const tdStyle: CSSProperties = { textAlign: 'right', fontSize: 13, padding: '10px' }
 
 export default function USWatchlistPage() {
   const [quotes, setQuotes] = useState<USQuote[]>([])
