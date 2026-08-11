@@ -62,7 +62,7 @@ export const US_WATCHLIST_TICKERS: USTicker[] = [
   { ticker: 'PLTR', companyName: 'パランティア', sector: 'Technology' },
   { ticker: 'UBER', companyName: 'ウーバー', sector: 'Technology' },
   { ticker: 'DOCU', companyName: 'ドキュサイン', sector: 'Technology' },
-  { ticker: 'CBRS', companyName: 'セレブラス・シスツムズ', sector: 'Technology' },
+  { ticker: 'CBRS', companyName: 'セレブラス・システムズ', sector: 'Technology' },
   { ticker: 'ACHR', companyName: 'アーチャー・アビエーション', sector: 'Industrial' },
   { ticker: 'MNDY', companyName: 'monday.com', sector: 'Technology' },
   { ticker: 'SNOW', companyName: 'スノーフレイク', sector: 'Technology' },
