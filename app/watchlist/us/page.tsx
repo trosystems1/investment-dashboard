@@ -132,8 +132,8 @@ export default function USWatchlistPage() {
                     style={{ cursor: 'pointer', borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}
                   >
                     <td style={{ padding: '10px', textAlign: 'left' }}>
-                      <div style={{ fontSize: 14, fontWeight: 700 }}>{q.ticker}</div>
-                      <div style={{ fontSize: 11, color: '#6B7280' }}>{q.companyName}</div>
+                      <span style={{ fontSize: 14, fontWeight: 700 }}>{q.ticker}</span>
+                      <span style={{ fontSize: 12, color: '#6B7280', marginLeft: 8 }}>{q.companyName}</span>
                     </td>
                     <td style={{ ...tdStyle, color: '#9CA3AF' }}>{formatVolume(q.volume)}</td>
                     <td style={{ ...tdStyle, fontWeight: 600 }}>{q.price != null ? q.price.toFixed(2) : '—'}</td>
