@@ -97,6 +97,14 @@ export default function USWatchlistPage() {
           <p style={{ fontSize: 11, color: '#6B7280', margin: '4px 0 0', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
             60 Tickers · Yahoo Finance
           </p>
+          <a href="/watchlist/mentions" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 12,
+            fontSize: 13, color: '#818CF8', textDecoration: 'none',
+            padding: '8px 14px', border: '0.5px solid rgba(129,140,248,0.3)',
+            borderRadius: 8, background: 'rgba(129,140,248,0.08)',
+          }}>
+            銘柄別言及履歴を見る →
+          </a>
           <input
             type="text"
             placeholder="銘柄名・ティッカーで検索"
