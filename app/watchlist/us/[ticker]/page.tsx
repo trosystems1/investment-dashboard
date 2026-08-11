@@ -1,13 +1,22 @@
 'use client'
+import { useState, useEffect } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 
-import { useEffect, useState, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+const RANGES = ['1mo', '3mo', '6mo', '1y'] as const
+type Range = typeof RANGES[number]
+const RANGE_LABELS: Record<Range, string> = { '1mo': '1M', '3mo': '3M', '6mo': '6M', '1y': '1Y' }
+
+const FONT_BODY = 'var(--font-body)' as const
+const fmt = (n: number | null) => n?.toLocaleString() ?? '-'
 
 type USQuote = {
   ticker: string
   companyName: string
   sector: string
   price: number | null
+  open: number | null
+  change: number | null
   changePct: number | null
   volume: number | null
   fiftyTwoWeekHigh: number | null
@@ -17,92 +26,61 @@ type USQuote = {
   sparkline: number[]
 }
 
-type ChartPoint = { time: number; close: number }
-type RangePreset = 'day' | 'month' | 'year'
+type ChartPoint = { date: string; value: number }
 
-const RANGE_LABELS: { key: RangePreset; label: string }[] = [
-  { key: 'day', label: '日' },
-  { key: 'month', label: '月' },
-  { key: 'year', label: '年' },
-]
-
-function formatVolume(v: number | null): string {
-  if (v == null) return '—'
-  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`
-  if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`
-  return `${v}`
+const Tip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background: 'rgba(13,15,20,0.95)', border: '0.5px solid rgba(196,156,72,0.3)', padding: '8px 12px', borderRadius: 8, fontSize: 12 }}>
+      <div style={{ color: '#6B7280', marginBottom: 4 }}>{label}</div>
+      <div style={{ color: '#C49C48', fontWeight: 500 }}>${payload[0].value?.toLocaleString()}</div>
+    </div>
+  )
 }
 
-function RangeBar({ price, high, low, label }: { price: number | null; high: number | null; low: number | null; label: string }) {
-  if (price == null || high == null || low == null || high <= low) return null
-  const pct = Math.min(100, Math.max(0, ((price - low) / (high - low)) * 100))
+function WaterLevel({ pct }: { pct: number }) {
+  const color = pct >= 70 ? '#F87171' : pct >= 40 ? '#C49C48' : '#4ADE80'
   return (
-    <div style={{ marginTop: 4 }}>
-      <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 11, color: '#9CA3AF', minWidth: 50 }}>${low.toFixed(2)}</span>
-        <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, position: 'relative' }}>
-          <div style={{ position: 'absolute', left: `${pct}%`, top: -2, width: 8, height: 8, borderRadius: 4, background: '#C49C48', transform: 'translateX(-50%)' }} />
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+      <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase' }}>52W</div>
+      <div style={{ position: 'relative', width: 48, height: 120, background: 'rgba(255,255,255,0.06)', borderRadius: 24, overflow: 'hidden', border: '0.5px solid rgba(255,255,255,0.1)' }}>
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: pct + '%', background: 'linear-gradient(to top,' + color + '99,' + color + '44)', transition: 'height 1s ease' }} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#E8E4D9' }}>{pct}%</span>
         </div>
-        <span style={{ fontSize: 11, color: '#9CA3AF', minWidth: 50, textAlign: 'right' }}>${high.toFixed(2)}</span>
       </div>
+      <div style={{ fontSize: 11, color: color, fontWeight: 500 }}>{pct >= 70 ? 'High' : pct >= 40 ? 'Mid' : 'Low'}</div>
     </div>
   )
 }
 
-function BigChart({ points, up, preset }: { points: ChartPoint[]; up: boolean; preset: RangePreset }) {
-  if (!points || points.length < 2) {
-    return <div style={{ fontSize: 12, color: '#4B5563', padding: '60px 0', textAlign: 'center' }}>チャートデータがありません</div>
-  }
-  const closes = points.map(p => p.close)
-  const min = Math.min(...closes)
-  const max = Math.max(...closes)
-  const range = max - min || 1
-  const W = 700
-  const H = 220
-  const pathPoints = points
-    .map((p, i) => `${(i / (points.length - 1)) * W},${H - ((p.close - min) / range) * H}`)
-    .join(' ')
-
-  const dateFmt = (t: number) => {
-    const d = new Date(t * 1000)
-    if (preset === 'day') return d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
-    if (preset === 'month') return d.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
-    return d.toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric' })
-  }
-
+function Card({ label, value, sub, gold }: { label: string; value: string; sub?: string; gold?: boolean }) {
   return (
-    <div>
-      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: 'block' }}>
-        <polyline points={pathPoints} fill="none" stroke={up ? '#4ade80' : '#f87171'} strokeWidth="2" />
-      </svg>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 10, color: '#4B5563' }}>
-        <span>{dateFmt(points[0].time)}</span>
-        <span>{dateFmt(points[points.length - 1].time)}</span>
-      </div>
+    <div style={{ background: gold ? 'rgba(196,156,72,0.06)' : 'rgba(255,255,255,0.03)', border: '0.5px solid ' + (gold ? 'rgba(196,156,72,0.25)' : 'rgba(255,255,255,0.07)'), borderRadius: 10, padding: '12px 14px' }}>
+      <div style={{ fontSize: 10, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 18, fontFamily: FONT_BODY, color: gold ? '#C49C48' : '#E8E4D9' }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: '#4B5563', marginTop: 2 }}>{sub}</div>}
     </div>
   )
 }
 
-export default function USTickerDetailPage() {
+export default function USStockPage() {
   const params = useParams()
+  const router = useRouter()
   const ticker = String(params.ticker ?? '').toUpperCase()
   const [quote, setQuote] = useState<USQuote | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
-  const [preset, setPreset] = useState<RangePreset>('month')
+  const [range, setRange] = useState<Range>('3mo')
   const [chartPoints, setChartPoints] = useState<ChartPoint[]>([])
   const [chartLoading, setChartLoading] = useState(true)
 
   useEffect(() => {
     if (!ticker) return
+    setLoading(true)
     fetch(`/api/us-watchlist/${ticker}`)
       .then(async r => {
-        if (r.status === 404) {
-          setNotFound(true)
-          setLoading(false)
-          return
-        }
+        if (r.status === 404) { setNotFound(true); setLoading(false); return }
         const d = await r.json()
         setQuote(d.quote ?? null)
         setLoading(false)
@@ -110,106 +88,114 @@ export default function USTickerDetailPage() {
       .catch(() => setLoading(false))
   }, [ticker])
 
-  const loadChart = useCallback((p: RangePreset) => {
+  useEffect(() => {
     if (!ticker) return
     setChartLoading(true)
-    fetch(`/api/us-watchlist/${ticker}/chart?range=${p}`)
+    fetch(`/api/us-watchlist/${ticker}/chart?range=${range}`)
       .then(r => r.json())
-      .then(d => {
-        setChartPoints(d.points ?? [])
-        setChartLoading(false)
-      })
+      .then(d => { setChartPoints(d.points ?? []); setChartLoading(false) })
       .catch(() => setChartLoading(false))
-  }, [ticker])
+  }, [ticker, range])
 
-  useEffect(() => {
-    loadChart(preset)
-  }, [preset, loadChart])
-
-  const up = quote && (quote.changePct ?? 0) >= 0
+  const isUp = quote ? (quote.changePct ?? 0) >= 0 : true
+  const waterLevel = quote && quote.price != null && quote.fiftyTwoWeekHigh != null && quote.fiftyTwoWeekLow != null && quote.fiftyTwoWeekHigh > quote.fiftyTwoWeekLow
+    ? Math.round(Math.min(100, Math.max(0, ((quote.price - quote.fiftyTwoWeekLow) / (quote.fiftyTwoWeekHigh - quote.fiftyTwoWeekLow)) * 100)))
+    : null
 
   return (
-    <div className="p-4 md:p-6" style={{ minHeight: '100vh', background: '#0D0F14', color: '#E8E4D9' }}>
-      <div style={{ maxWidth: 800, margin: '0 auto' }}>
-        <a href="/watchlist/us" style={{ fontSize: 12, color: '#818CF8', textDecoration: 'none' }}>
-          ← US Watchlist に戻る
-        </a>
+    <div className="p-4 md:p-5" style={{ minHeight: '100vh', background: '#0D0F14', fontFamily: 'var(--font-body)', color: '#E8E4D9' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
 
-        {loading ? (
-          <div style={{ color: '#6B7280', fontSize: 13, textAlign: 'center', paddingTop: 60 }}>読み込み中...</div>
-        ) : notFound || !quote ? (
-          <div style={{ color: '#6B7280', fontSize: 13, textAlign: 'center', paddingTop: 60 }}>
-            銘柄「{ticker}」が見つかりませんでした。
-          </div>
-        ) : (
-          <>
-            <div style={{ marginTop: 20, marginBottom: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-                <h2 style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>{quote.ticker}</h2>
-                <span style={{ fontSize: 14, color: '#6B7280' }}>{quote.companyName}</span>
-              </div>
-              <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, color: '#C49C48', background: 'rgba(196,156,72,0.1)', border: '0.5px solid rgba(196,156,72,0.3)', display: 'inline-block', marginTop: 8 }}>
-                {quote.sector}
-              </span>
-
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginTop: 16 }}>
-                <span style={{ fontSize: 36, fontWeight: 700 }}>
-                  {quote.price != null ? `$${quote.price.toFixed(2)}` : '—'}
-                </span>
-                {quote.changePct != null && (
-                  <span
-                    style={{
-                      fontSize: 16, fontWeight: 700, padding: '3px 12px', borderRadius: 8,
-                      background: up ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)',
-                      color: up ? '#4ade80' : '#f87171',
-                    }}
-                  >
-                    {up ? '+' : ''}{quote.changePct}%
-                  </span>
-                )}
-              </div>
-
-              <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 8 }}>出来高: {formatVolume(quote.volume)}</div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16, maxWidth: 360 }}>
-                <RangeBar price={quote.price} high={quote.dayHigh} low={quote.dayLow} label="本日のレンジ" />
-                <RangeBar price={quote.price} high={quote.fiftyTwoWeekHigh} low={quote.fiftyTwoWeekLow} label="52週レンジ" />
-              </div>
+        <div className="flex flex-wrap items-center gap-3 md:gap-4 mb-6">
+          <button onClick={() => router.push('/watchlist/us')} style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 14px', color: '#B8B4A8', cursor: 'pointer', fontSize: 13 }}>← Back</button>
+          {!loading && quote && (
+            <div className="flex flex-wrap items-baseline gap-2 md:gap-3 min-w-0">
+              <h1 className="text-xl md:text-2xl" style={{ fontFamily: FONT_BODY, margin: 0, color: '#E8E4D9', letterSpacing: '-0.5px', fontWeight: 600 }}>{quote.companyName}</h1>
+              <span style={{ fontSize: 13, color: '#6B7280' }}>{quote.ticker}</span>
+              <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 6, background: 'rgba(196,156,72,0.1)', color: '#C49C48' }}>{quote.sector}</span>
             </div>
+          )}
+        </div>
 
-            <div style={{ background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '20px 16px', marginBottom: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <div style={{ fontSize: 11, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase' }}>
-                  値動き
+        {loading && <div style={{ color: '#6B7280', textAlign: 'center', paddingTop: 80 }}>Loading...</div>}
+        {!loading && (notFound || !quote) && <div style={{ color: '#6B7280', textAlign: 'center', paddingTop: 80 }}>銘柄「{ticker}」が見つかりませんでした。</div>}
+
+        {!loading && quote && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            <div className="flex flex-wrap items-end gap-3 md:gap-4">
+              <div className="text-3xl md:text-[40px]" style={{ fontFamily: FONT_BODY, color: '#C49C48', lineHeight: 1 }}>${fmt(quote.price)}</div>
+              {quote.changePct != null && (
+                <div style={{ fontSize: 15, padding: '4px 12px', borderRadius: 12, background: isUp ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)', color: isUp ? '#4ADE80' : '#F87171' }}>
+                  {isUp ? '+' : ''}{fmt(quote.change)} ({isUp ? '+' : ''}{quote.changePct?.toFixed(2)}%)
                 </div>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {RANGE_LABELS.map(r => (
-                    <button
-                      key={r.key}
-                      onClick={() => setPreset(r.key)}
-                      style={{
-                        fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                        border: 'none',
-                        background: preset === r.key ? 'rgba(196,156,72,0.15)' : 'transparent',
-                        color: preset === r.key ? '#C49C48' : '#6B7280',
-                      }}
-                    >
-                      {r.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {chartLoading ? (
-                <div style={{ fontSize: 12, color: '#4B5563', padding: '60px 0', textAlign: 'center' }}>読み込み中...</div>
-              ) : (
-                <BigChart points={chartPoints} up={!!up} preset={preset} />
               )}
             </div>
 
-            <div style={{ fontSize: 12, color: '#4B5563', textAlign: 'center', marginTop: 32 }}>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+              <Card label="始値" value={quote.open != null ? '$' + fmt(quote.open) : '-'} />
+              <Card label="高値" value={quote.dayHigh != null ? '$' + fmt(quote.dayHigh) : '-'} gold />
+              <Card label="安値" value={quote.dayLow != null ? '$' + fmt(quote.dayLow) : '-'} />
+              <Card label="出来高" value={quote.volume != null ? fmt(quote.volume) + '株' : '-'} />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_80px] gap-4">
+              <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <span style={{ fontSize: 13, color: '#B8B4A8' }}>株価チャート</span>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {RANGES.map(r => (
+                      <button key={r} onClick={() => setRange(r)} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', border: 'none', background: range === r ? 'rgba(196,156,72,0.15)' : 'transparent', color: range === r ? '#C49C48' : '#6B7280' }}>{RANGE_LABELS[r]}</button>
+                    ))}
+                  </div>
+                </div>
+                {chartLoading ? (
+                  <div style={{ color: '#6B7280', fontSize: 12, textAlign: 'center', padding: '80px 0' }}>読み込み中...</div>
+                ) : chartPoints.length < 2 ? (
+                  <div style={{ color: '#6B7280', fontSize: 12, textAlign: 'center', padding: '80px 0' }}>チャートデータがありません</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <AreaChart data={chartPoints} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
+                      <defs>
+                        <linearGradient id="gUS" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#C49C48" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#C49C48" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                      <XAxis dataKey="date" tick={{ fill: '#4B5563', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                      <YAxis tick={{ fill: '#4B5563', fontSize: 10 }} tickLine={false} axisLine={false} width={55} tickFormatter={v => '$' + v.toLocaleString()} domain={['auto', 'auto']} />
+                      <Tooltip content={<Tip />} />
+                      {quote.fiftyTwoWeekHigh != null && <ReferenceLine y={quote.fiftyTwoWeekHigh} stroke="rgba(248,113,113,0.3)" strokeDasharray="3 3" />}
+                      {quote.fiftyTwoWeekLow != null && <ReferenceLine y={quote.fiftyTwoWeekLow} stroke="rgba(74,222,128,0.3)" strokeDasharray="3 3" />}
+                      <Area type="monotone" dataKey="value" stroke="#C49C48" strokeWidth={2} fill="url(#gUS)" dot={false} activeDot={{ r: 4, fill: '#C49C48', strokeWidth: 0 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+                {waterLevel != null && (
+                  <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ fontSize: 11, color: '#4ADE80' }}>安値 ${fmt(quote.fiftyTwoWeekLow)}</span>
+                      <span style={{ fontSize: 11, color: '#6B7280' }}>現在 ${fmt(quote.price)}</span>
+                      <span style={{ fontSize: 11, color: '#F87171' }}>高値 ${fmt(quote.fiftyTwoWeekHigh)}</span>
+                    </div>
+                    <div style={{ position: 'relative', height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3 }}>
+                      <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: waterLevel + '%', background: 'linear-gradient(to right, #4ADE80, #C49C48, #F87171)', borderRadius: 3 }} />
+                      <div style={{ position: 'absolute', top: -3, left: waterLevel + '%', transform: 'translateX(-50%)', width: 12, height: 12, borderRadius: '50%', background: '#E8E4D9', border: '2px solid #0D0F14' }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {waterLevel != null ? <WaterLevel pct={waterLevel} /> : <span style={{ fontSize: 11, color: '#6B7280' }}>—</span>}
+              </div>
+            </div>
+
+            <div style={{ fontSize: 12, color: '#4B5563', textAlign: 'center', marginTop: 8 }}>
               決算反応パターンなどの詳細分析は今後追加予定です
             </div>
-          </>
+
+          </div>
         )}
       </div>
     </div>
