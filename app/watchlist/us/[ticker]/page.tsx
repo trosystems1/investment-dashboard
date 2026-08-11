@@ -10,7 +10,10 @@ type USQuote = {
   price: number | null
   changePct: number | null
   volume: number | null
-  marketCap: number | null
+  fiftyTwoWeekHigh: number | null
+  fiftyTwoWeekLow: number | null
+  dayHigh: number | null
+  dayLow: number | null
   sparkline: number[]
 }
 
@@ -23,19 +26,28 @@ const RANGE_LABELS: { key: RangePreset; label: string }[] = [
   { key: 'year', label: '年' },
 ]
 
-function formatMarketCap(v: number | null): string {
-  if (v == null) return '—'
-  if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}T`
-  if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`
-  if (v >= 1e6) return `$${(v / 1e6).toFixed(0)}M`
-  return `$${v.toLocaleString()}`
-}
-
 function formatVolume(v: number | null): string {
   if (v == null) return '—'
   if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`
   if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`
   return `${v}`
+}
+
+function RangeBar({ price, high, low, label }: { price: number | null; high: number | null; low: number | null; label: string }) {
+  if (price == null || high == null || low == null || high <= low) return null
+  const pct = Math.min(100, Math.max(0, ((price - low) / (high - low)) * 100))
+  return (
+    <div style={{ marginTop: 4 }}>
+      <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 11, color: '#9CA3AF', minWidth: 50 }}>${low.toFixed(2)}</span>
+        <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, position: 'relative' }}>
+          <div style={{ position: 'absolute', left: `${pct}%`, top: -2, width: 8, height: 8, borderRadius: 4, background: '#C49C48', transform: 'translateX(-50%)' }} />
+        </div>
+        <span style={{ fontSize: 11, color: '#9CA3AF', minWidth: 50, textAlign: 'right' }}>${high.toFixed(2)}</span>
+      </div>
+    </div>
+  )
 }
 
 function BigChart({ points, up, preset }: { points: ChartPoint[]; up: boolean; preset: RangePreset }) {
@@ -157,15 +169,11 @@ export default function USTickerDetailPage() {
                 )}
               </div>
 
-              <div style={{ display: 'flex', gap: 24, marginTop: 12 }}>
-                <div>
-                  <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>時価総額</div>
-                  <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 2 }}>{formatMarketCap(quote.marketCap)}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>出来高</div>
-                  <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 2 }}>{formatVolume(quote.volume)}</div>
-                </div>
+              <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 8 }}>出来高: {formatVolume(quote.volume)}</div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16, maxWidth: 360 }}>
+                <RangeBar price={quote.price} high={quote.dayHigh} low={quote.dayLow} label="本日のレンジ" />
+                <RangeBar price={quote.price} high={quote.fiftyTwoWeekHigh} low={quote.fiftyTwoWeekLow} label="52週レンジ" />
               </div>
             </div>
 
