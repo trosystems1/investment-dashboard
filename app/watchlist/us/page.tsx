@@ -114,10 +114,11 @@ export default function USWatchlistPage() {
           <div style={{ color: '#6B7280', fontSize: 13, textAlign: 'center', paddingTop: 60 }}>読み込み中...</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
               <thead>
                 <tr style={{ borderBottom: '0.5px solid rgba(255,255,255,0.1)' }}>
-                  <th style={{ ...thStyle, textAlign: 'left' }}>銘柄</th>
+                  <th style={{ ...thStyle, textAlign: 'left', width: 70 }}>ティッカー</th>
+                  <th style={{ ...thStyle, textAlign: 'left' }}>銘柄名</th>
                   <th style={thStyle}>出来高</th>
                   <th style={thStyle}>株価</th>
                   <th style={thStyle}>52週レンジ</th>
@@ -131,9 +132,11 @@ export default function USWatchlistPage() {
                     onClick={() => { window.location.href = `/watchlist/us/${q.ticker}` }}
                     style={{ cursor: 'pointer', borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}
                   >
-                    <td style={{ padding: '10px', textAlign: 'left' }}>
-                      <span style={{ fontSize: 14, fontWeight: 700 }}>{q.ticker}</span>
-                      <span style={{ fontSize: 12, color: '#6B7280', marginLeft: 8 }}>{q.companyName}</span>
+                    <td style={{ padding: '10px', textAlign: 'left', fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      {q.ticker}
+                    </td>
+                    <td style={{ padding: '10px', textAlign: 'left', fontSize: 13, color: '#B8B4A8' }}>
+                      {q.companyName}
                     </td>
                     <td style={{ ...tdStyle, color: '#9CA3AF' }}>{formatVolume(q.volume)}</td>
                     <td style={{ ...tdStyle, fontWeight: 600 }}>{q.price != null ? q.price.toFixed(2) : '—'}</td>
