@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 
 type USQuote = {
@@ -9,23 +9,66 @@ type USQuote = {
   sector: string
   price: number | null
   changePct: number | null
+  volume: number | null
+  marketCap: number | null
   sparkline: number[]
 }
 
-function BigChart({ data, up }: { data: number[]; up: boolean }) {
-  if (!data || data.length < 2) return null
-  const min = Math.min(...data)
-  const max = Math.max(...data)
+type ChartPoint = { time: number; close: number }
+type RangePreset = 'day' | 'month' | 'year'
+
+const RANGE_LABELS: { key: RangePreset; label: string }[] = [
+  { key: 'day', label: '日' },
+  { key: 'month', label: '月' },
+  { key: 'year', label: '年' },
+]
+
+function formatMarketCap(v: number | null): string {
+  if (v == null) return '—'
+  if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}T`
+  if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`
+  if (v >= 1e6) return `$${(v / 1e6).toFixed(0)}M`
+  return `$${v.toLocaleString()}`
+}
+
+function formatVolume(v: number | null): string {
+  if (v == null) return '—'
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`
+  if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`
+  return `${v}`
+}
+
+function BigChart({ points, up, preset }: { points: ChartPoint[]; up: boolean; preset: RangePreset }) {
+  if (!points || points.length < 2) {
+    return <div style={{ fontSize: 12, color: '#4B5563', padding: '60px 0', textAlign: 'center' }}>チャートデータがありません</div>
+  }
+  const closes = points.map(p => p.close)
+  const min = Math.min(...closes)
+  const max = Math.max(...closes)
   const range = max - min || 1
   const W = 700
-  const H = 200
-  const points = data
-    .map((v, i) => `${(i / (data.length - 1)) * W},${H - ((v - min) / range) * H}`)
+  const H = 220
+  const pathPoints = points
+    .map((p, i) => `${(i / (points.length - 1)) * W},${H - ((p.close - min) / range) * H}`)
     .join(' ')
+
+  const dateFmt = (t: number) => {
+    const d = new Date(t * 1000)
+    if (preset === 'day') return d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+    if (preset === 'month') return d.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
+    return d.toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric' })
+  }
+
   return (
-    <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: 'block' }}>
-      <polyline points={points} fill="none" stroke={up ? '#4ade80' : '#f87171'} strokeWidth="2" />
-    </svg>
+    <div>
+      <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: 'block' }}>
+        <polyline points={pathPoints} fill="none" stroke={up ? '#4ade80' : '#f87171'} strokeWidth="2" />
+      </svg>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 10, color: '#4B5563' }}>
+        <span>{dateFmt(points[0].time)}</span>
+        <span>{dateFmt(points[points.length - 1].time)}</span>
+      </div>
+    </div>
   )
 }
 
@@ -35,6 +78,9 @@ export default function USTickerDetailPage() {
   const [quote, setQuote] = useState<USQuote | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [preset, setPreset] = useState<RangePreset>('month')
+  const [chartPoints, setChartPoints] = useState<ChartPoint[]>([])
+  const [chartLoading, setChartLoading] = useState(true)
 
   useEffect(() => {
     if (!ticker) return
@@ -51,6 +97,22 @@ export default function USTickerDetailPage() {
       })
       .catch(() => setLoading(false))
   }, [ticker])
+
+  const loadChart = useCallback((p: RangePreset) => {
+    if (!ticker) return
+    setChartLoading(true)
+    fetch(`/api/us-watchlist/${ticker}/chart?range=${p}`)
+      .then(r => r.json())
+      .then(d => {
+        setChartPoints(d.points ?? [])
+        setChartLoading(false)
+      })
+      .catch(() => setChartLoading(false))
+  }, [ticker])
+
+  useEffect(() => {
+    loadChart(preset)
+  }, [preset, loadChart])
 
   const up = quote && (quote.changePct ?? 0) >= 0
 
@@ -69,7 +131,7 @@ export default function USTickerDetailPage() {
           </div>
         ) : (
           <>
-            <div style={{ marginTop: 20, marginBottom: 28 }}>
+            <div style={{ marginTop: 20, marginBottom: 20 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
                 <h2 style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>{quote.ticker}</h2>
                 <span style={{ fontSize: 14, color: '#6B7280' }}>{quote.companyName}</span>
@@ -94,16 +156,45 @@ export default function USTickerDetailPage() {
                   </span>
                 )}
               </div>
+
+              <div style={{ display: 'flex', gap: 24, marginTop: 12 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>時価総額</div>
+                  <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 2 }}>{formatMarketCap(quote.marketCap)}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>出来高</div>
+                  <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 2 }}>{formatVolume(quote.volume)}</div>
+                </div>
+              </div>
             </div>
 
             <div style={{ background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '20px 16px', marginBottom: 24 }}>
-              <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 12, letterSpacing: '1px', textTransform: 'uppercase' }}>
-                直近の値動き
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                  値動き
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {RANGE_LABELS.map(r => (
+                    <button
+                      key={r.key}
+                      onClick={() => setPreset(r.key)}
+                      style={{
+                        fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
+                        border: 'none',
+                        background: preset === r.key ? 'rgba(196,156,72,0.15)' : 'transparent',
+                        color: preset === r.key ? '#C49C48' : '#6B7280',
+                      }}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              {quote.sparkline.length >= 2 ? (
-                <BigChart data={quote.sparkline} up={!!up} />
+              {chartLoading ? (
+                <div style={{ fontSize: 12, color: '#4B5563', padding: '60px 0', textAlign: 'center' }}>読み込み中...</div>
               ) : (
-                <div style={{ fontSize: 12, color: '#4B5563' }}>チャートデータがありません</div>
+                <BigChart points={chartPoints} up={!!up} preset={preset} />
               )}
             </div>
 
