@@ -9,16 +9,11 @@ type USQuote = {
   price: number | null
   changePct: number | null
   volume: number | null
-  marketCap: number | null
+  fiftyTwoWeekHigh: number | null
+  fiftyTwoWeekLow: number | null
+  dayHigh: number | null
+  dayLow: number | null
   sparkline: number[]
-}
-
-function formatMarketCap(v: number | null): string {
-  if (v == null) return '—'
-  if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}T`
-  if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`
-  if (v >= 1e6) return `$${(v / 1e6).toFixed(0)}M`
-  return `$${v.toLocaleString()}`
 }
 
 function formatVolume(v: number | null): string {
@@ -28,18 +23,44 @@ function formatVolume(v: number | null): string {
   return `${v}`
 }
 
-function Sparkline({ data, up }: { data: number[]; up: boolean }) {
-  if (!data || data.length < 2) return <div style={{ width: 50, height: 22 }} />
-  const min = Math.min(...data)
-  const max = Math.max(...data)
-  const range = max - min || 1
-  const points = data
-    .map((v, i) => `${(i / (data.length - 1)) * 50},${22 - ((v - min) / range) * 22}`)
-    .join(' ')
+function Range52w({ price, high, low }: { price: number | null; high: number | null; low: number | null }) {
+  if (price == null || high == null || low == null || high <= low) return <span style={{ color: '#6B7280' }}>—</span>
+  const pct = Math.min(100, Math.max(0, ((price - low) / (high - low)) * 100))
   return (
-    <svg width="50" height="22" style={{ display: 'block' }}>
-      <polyline points={points} fill="none" stroke={up ? '#4ade80' : '#f87171'} strokeWidth="1.5" />
-    </svg>
+    <div style={{ width: 70 }}>
+      <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, position: 'relative' }}>
+        <div style={{ position: 'absolute', left: `${pct}%`, top: -2, width: 8, height: 8, borderRadius: 4, background: '#C49C48', transform: 'translateX(-50%)' }} />
+      </div>
+      <div style={{ fontSize: 9, color: '#6B7280', marginTop: 3 }}>{pct.toFixed(0)}%</div>
+    </div>
+  )
+}
+
+function SparklineWithChange({ data, changePct }: { data: number[]; changePct: number | null }) {
+  const up = (changePct ?? 0) >= 0
+  const color = changePct == null ? '#6B7280' : up ? '#4ade80' : '#f87171'
+  let points = ''
+  if (data && data.length >= 2) {
+    const min = Math.min(...data)
+    const max = Math.max(...data)
+    const range = max - min || 1
+    points = data.map((v, i) => `${(i / (data.length - 1)) * 50},${22 - ((v - min) / range) * 22}`).join(' ')
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+      <svg width="50" height="22" style={{ display: 'block', flexShrink: 0 }}>
+        {points && <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" />}
+      </svg>
+      <span
+        style={{
+          fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 6, minWidth: 56, textAlign: 'center',
+          background: changePct == null ? 'transparent' : up ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)',
+          color,
+        }}
+      >
+        {changePct != null ? `${up ? '+' : ''}${changePct}%` : '—'}
+      </span>
+    </div>
   )
 }
 
@@ -93,52 +114,39 @@ export default function USWatchlistPage() {
           <div style={{ color: '#6B7280', fontSize: 13, textAlign: 'center', paddingTop: 60 }}>読み込み中...</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
               <thead>
                 <tr style={{ borderBottom: '0.5px solid rgba(255,255,255,0.1)' }}>
                   <th style={{ ...thStyle, textAlign: 'left' }}>銘柄</th>
-                  <th style={thStyle}>チャート</th>
-                  <th style={thStyle}>時価総額</th>
                   <th style={thStyle}>出来高</th>
                   <th style={thStyle}>株価</th>
-                  <th style={thStyle}>前日比</th>
+                  <th style={thStyle}>52週レンジ</th>
+                  <th style={thStyle}>チャート / 前日比</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(q => {
-                  const up = (q.changePct ?? 0) >= 0
-                  return (
-                    <tr
-                      key={q.ticker}
-                      onClick={() => { window.location.href = `/watchlist/us/${q.ticker}` }}
-                      style={{ cursor: 'pointer', borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}
-                    >
-                      <td style={{ padding: '10px', textAlign: 'left' }}>
-                        <div style={{ fontSize: 14, fontWeight: 700 }}>{q.ticker}</div>
-                        <div style={{ fontSize: 11, color: '#6B7280' }}>{q.companyName}</div>
-                      </td>
-                      <td style={tdStyle}>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                          <Sparkline data={q.sparkline} up={up} />
-                        </div>
-                      </td>
-                      <td style={{ ...tdStyle, color: '#9CA3AF' }}>{formatMarketCap(q.marketCap)}</td>
-                      <td style={{ ...tdStyle, color: '#9CA3AF' }}>{formatVolume(q.volume)}</td>
-                      <td style={{ ...tdStyle, fontWeight: 600 }}>{q.price != null ? q.price.toFixed(2) : '—'}</td>
-                      <td style={tdStyle}>
-                        <span
-                          style={{
-                            fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-                            background: q.changePct == null ? 'transparent' : up ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)',
-                            color: q.changePct == null ? '#6B7280' : up ? '#4ade80' : '#f87171',
-                          }}
-                        >
-                          {q.changePct != null ? `${up ? '+' : ''}${q.changePct}%` : '—'}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
+                {filtered.map(q => (
+                  <tr
+                    key={q.ticker}
+                    onClick={() => { window.location.href = `/watchlist/us/${q.ticker}` }}
+                    style={{ cursor: 'pointer', borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}
+                  >
+                    <td style={{ padding: '10px', textAlign: 'left' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700 }}>{q.ticker}</div>
+                      <div style={{ fontSize: 11, color: '#6B7280' }}>{q.companyName}</div>
+                    </td>
+                    <td style={{ ...tdStyle, color: '#9CA3AF' }}>{formatVolume(q.volume)}</td>
+                    <td style={{ ...tdStyle, fontWeight: 600 }}>{q.price != null ? q.price.toFixed(2) : '—'}</td>
+                    <td style={tdStyle}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <Range52w price={q.price} high={q.fiftyTwoWeekHigh} low={q.fiftyTwoWeekLow} />
+                      </div>
+                    </td>
+                    <td style={tdStyle}>
+                      <SparklineWithChange data={q.sparkline} changePct={q.changePct} />
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
