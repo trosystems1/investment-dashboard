@@ -75,6 +75,8 @@ export type USQuote = {
   companyName: string
   sector: string
   price: number | null
+  open: number | null
+  change: number | null
   changePct: number | null
   volume: number | null
   fiftyTwoWeekHigh: number | null
@@ -84,12 +86,13 @@ export type USQuote = {
   sparkline: number[]
 }
 
-export type RangePreset = 'day' | 'month' | 'year'
+export type RangePreset = '1mo' | '3mo' | '6mo' | '1y'
 
 const RANGE_PARAMS: Record<RangePreset, { range: string; interval: string }> = {
-  day: { range: '1d', interval: '5m' },
-  month: { range: '1mo', interval: '1d' },
-  year: { range: '1y', interval: '1wk' },
+  '1mo': { range: '1mo', interval: '1d' },
+  '3mo': { range: '3mo', interval: '1d' },
+  '6mo': { range: '6mo', interval: '1wk' },
+  '1y': { range: '1y', interval: '1wk' },
 }
 
 async function fetchChart(ticker: string, range = '5d', interval = '1d') {
@@ -104,7 +107,7 @@ async function fetchChart(ticker: string, range = '5d', interval = '1d') {
 
 async function fetchOne(ticker: string): Promise<Omit<USQuote, 'ticker' | 'companyName' | 'sector'>> {
   const empty = {
-    price: null, changePct: null, volume: null,
+    price: null, open: null, change: null, changePct: null, volume: null,
     fiftyTwoWeekHigh: null, fiftyTwoWeekLow: null, dayHigh: null, dayLow: null,
     sparkline: [] as number[],
   }
@@ -113,6 +116,7 @@ async function fetchOne(ticker: string): Promise<Omit<USQuote, 'ticker' | 'compa
     if (!result) return empty
     const meta = result.meta ?? {}
     const closesRaw: (number | null)[] = result?.indicators?.quote?.[0]?.close ?? []
+    const opensRaw: (number | null)[] = result?.indicators?.quote?.[0]?.open ?? []
     const volumesRaw: (number | null)[] = result?.indicators?.quote?.[0]?.volume ?? []
     const validIdx = closesRaw.map((v, i) => (v != null && !isNaN(v) ? i : -1)).filter((i) => i >= 0)
     if (validIdx.length < 2) {
@@ -126,11 +130,15 @@ async function fetchOne(ticker: string): Promise<Omit<USQuote, 'ticker' | 'compa
     const prevI = validIdx[validIdx.length - 2]
     const curr = closesRaw[lastI] as number
     const prev = closesRaw[prevI] as number
+    const change = parseFloat((curr - prev).toFixed(2))
     const changePct = prev ? parseFloat((((curr - prev) / prev) * 100).toFixed(2)) : null
     const volume = volumesRaw[lastI] ?? meta.regularMarketVolume ?? null
+    const open = opensRaw[lastI] ?? meta.regularMarketOpen ?? null
     const sparkline = validIdx.slice(-10).map((i) => closesRaw[i] as number)
     return {
       price: parseFloat(curr.toFixed(2)),
+      open: open != null ? parseFloat(Number(open).toFixed(2)) : null,
+      change,
       changePct,
       volume,
       fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh ?? null,
@@ -161,7 +169,7 @@ export async function fetchUSQuote(ticker: string): Promise<USQuote | null> {
   return { ticker: meta.ticker, companyName: meta.companyName, sector: meta.sector, ...q }
 }
 
-export type ChartPoint = { time: number; close: number }
+export type ChartPoint = { date: string; value: number }
 
 export async function fetchUSChartRange(ticker: string, preset: RangePreset): Promise<ChartPoint[]> {
   const { range, interval } = RANGE_PARAMS[preset]
@@ -172,7 +180,11 @@ export async function fetchUSChartRange(ticker: string, preset: RangePreset): Pr
   const points: ChartPoint[] = []
   for (let i = 0; i < timestamps.length; i++) {
     const c = closes[i]
-    if (c != null && !isNaN(c)) points.push({ time: timestamps[i], close: c })
+    if (c != null && !isNaN(c)) {
+      const d = new Date(timestamps[i] * 1000)
+      const dateLabel = `${d.getMonth() + 1}/${d.getDate()}`
+      points.push({ date: dateLabel, value: parseFloat(c.toFixed(2)) })
+    }
   }
   return points
 }
