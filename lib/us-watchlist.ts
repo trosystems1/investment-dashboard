@@ -76,27 +76,63 @@ export type USQuote = {
   sector: string
   price: number | null
   changePct: number | null
+  volume: number | null
+  marketCap: number | null
   sparkline: number[]
 }
 
-async function fetchOne(ticker: string): Promise<{ price: number | null; changePct: number | null; sparkline: number[] }> {
+export type RangePreset = 'day' | 'month' | 'year'
+
+const RANGE_PARAMS: Record<RangePreset, { range: string; interval: string }> = {
+  day: { range: '1d', interval: '5m' },
+  month: { range: '1mo', interval: '1d' },
+  year: { range: '1y', interval: '1wk' },
+}
+
+async function fetchChart(ticker: string, range = '5d', interval = '1d') {
+  const res = await fetch(
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`,
+    { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ARIA-Watchlist/1.0)' }, next: { revalidate: 300 } }
+  )
+  if (!res.ok) return null
+  const json = await res.json()
+  return json?.chart?.result?.[0] ?? null
+}
+
+// 時顢緝儯はv8/chartぎmetaに含まれないケースがあるためquoteSummaryを試す(失敗時はnullにフォールバック、ページブルは壁さない)
+async function fetchMarketCap(ticker: string): Promise<number | null> {
   try {
     const res = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=5d`,
-      { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ARIA-Watchlist/1.0)' }, next: { revalidate: 300 } }
+      `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=price`,
+      { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ARIA-Watchlist/1.0)' }, next: { revalidate: 3600 } }
     )
-    if (!res.ok) return { price: null, changePct: null, sparkline: [] }
+    if (!res.ok) return null
     const json = await res.json()
-    const result = json?.chart?.result?.[0]
-    const closes: (number | null)[] = result?.indicators?.quote?.[0]?.close ?? []
-    const valid = closes.filter((v): v is number => v != null && !isNaN(v))
-    if (valid.length < 2) return { price: null, changePct: null, sparkline: valid }
-    const curr = valid[valid.length - 1]
-    const prev = valid[valid.length - 2]
-    const changePct = prev ? parseFloat((((curr - prev) / prev) * 100).toFixed(2)) : null
-    return { price: parseFloat(curr.toFixed(2)), changePct, sparkline: valid.slice(-10) }
+    const cap = json?.quoteSummary?.result?.[0]?.price?.marketCap?.raw
+    return typeof cap === 'number' ? cap : null
   } catch {
-    return { price: null, changePct: null, sparkline: [] }
+    return null
+  }
+}
+
+async function fetchOne(ticker: string): Promise<Omit<USQuote, 'ticker' | 'companyName' | 'sector'>> {
+  try {
+    const [result, marketCap] = await Promise.all([fetchChart(ticker, '5d', '1d'), fetchMarketCap(ticker)])
+    if (!result) return { price: null, changePct: null, volume: null, marketCap, sparkline: [] }
+    const closesRaw: (number | null)[] = result?.indicators?.quote?.[0]?.close ?? []
+    const volumesRaw: (number | null)[] = result?.indicators?.quote?.[0]?.volume ?? []
+    const validIdx = closesRaw.map((v, i) => (v != null && !isNaN(v) ? i : -1)).filter((i) => i >= 0)
+    if (validIdx.length < 2) return { price: null, changePct: null, volume: null, marketCap, sparkline: [] }
+    const lastI = validIdx[validIdx.length - 1]
+    const prevI = validIdx[validIdx.length - 2]
+    const curr = closesRaw[lastI] as number
+    const prev = closesRaw[prevI] as number
+    const changePct = prev ? parseFloat((((curr - prev) / prev) * 100).toFixed(2)) : null
+    const volume = volumesRaw[lastI] ?? null
+    const sparkline = validIdx.slice(-10).map((i) => closesRaw[i] as number)
+    return { price: parseFloat(curr.toFixed(2)), changePct, volume, marketCap, sparkline }
+  } catch {
+    return { price: null, changePct: null, volume: null, marketCap: null, sparkline: [] }
   }
 }
 
@@ -115,4 +151,20 @@ export async function fetchUSQuote(ticker: string): Promise<USQuote | null> {
   if (!meta) return null
   const q = await fetchOne(ticker)
   return { ticker: meta.ticker, companyName: meta.companyName, sector: meta.sector, ...q }
+}
+
+export type ChartPoint = { time: number; close: number }
+
+export async function fetchUSChartRange(ticker: string, preset: RangePreset): Promise<ChartPoint[]> {
+  const { range, interval } = RANGE_PARAMS[preset]
+  const result = await fetchChart(ticker, range, interval)
+  if (!result) return []
+  const timestamps: number[] = result.timestamp ?? []
+  const closes: (number | null)[] = result?.indicators?.quote?.[0]?.close ?? []
+  const points: ChartPoint[] = []
+  for (let i = 0; i < timestamps.length; i++) {
+    const c = closes[i]
+    if (c != null && !isNaN(c)) points.push({ time: timestamps[i], close: c })
+  }
+  return points
 }
