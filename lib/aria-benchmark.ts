@@ -9,7 +9,7 @@ const BENCHMARK_CHANNELS = [
 ]
 
 const GEMINI_MODEL = 'gemini-2.5-flash'
-const MAX_VIDEOS_PER_CHANNEL = 2
+const MAX_VIDEOS_PER_CHANNEL = 1
 
 export interface BenchmarkInsight {
   channelName: string
@@ -83,7 +83,7 @@ async function analyzeVideoWithGemini(videoUrl: string, channelName: string, tit
           },
         ],
       },
-      { timeout: 55000 }
+      { timeout: 25000 }
     )
     const text = res.data?.candidates?.[0]?.content?.parts?.[0]?.text
     return text ? String(text).trim() : null
@@ -102,32 +102,52 @@ export async function collectBenchmarkInsights(): Promise<{ insights: BenchmarkI
   const insights: BenchmarkInsight[] = []
   const errors: string[] = []
 
-  for (const channel of BENCHMARK_CHANNELS) {
-    const channelId = await resolveChannelId(channel.handleUrl)
-    if (!channelId) {
-      errors.push(`${channel.name}: channelId解決失敗`)
-      continue
-    }
+  // Vercel Hobbyの maxDuration=60s に収めるため、チャンネル解決〜Gemini解析まで全て並列で走らせる。
+  // 逐次ループだと動画1本あたり数十秒かかりタイムアウトする。
+  const perChannel = await Promise.all(
+    BENCHMARK_CHANNELS.map(async (channel) => {
+      const localInsights: BenchmarkInsight[] = []
+      const localErrors: string[] = []
 
-    const videos = await getRecentVideoUrls(channelId, MAX_VIDEOS_PER_CHANNEL)
-    if (videos.length === 0) {
-      errors.push(`${channel.name}: 動画取得0件`)
-      continue
-    }
-
-    for (const video of videos) {
-      const focusThemes = await analyzeVideoWithGemini(video.url, channel.name, video.title)
-      if (focusThemes) {
-        insights.push({
-          channelName: channel.name,
-          videoTitle: video.title,
-          focusThemes,
-          sourceUrl: video.url,
-        })
-      } else {
-        errors.push(`${channel.name} / ${video.title}: Gemini解析失敗`)
+      const channelId = await resolveChannelId(channel.handleUrl)
+      if (!channelId) {
+        localErrors.push(`${channel.name}: channelId解決失敗`)
+        return { localInsights, localErrors }
       }
-    }
+
+      const videos = await getRecentVideoUrls(channelId, MAX_VIDEOS_PER_CHANNEL)
+      if (videos.length === 0) {
+        localErrors.push(`${channel.name}: 動画取得0件`)
+        return { localInsights, localErrors }
+      }
+
+      const analyzed = await Promise.all(
+        videos.map(async (video) => ({
+          video,
+          focusThemes: await analyzeVideoWithGemini(video.url, channel.name, video.title),
+        }))
+      )
+
+      for (const { video, focusThemes } of analyzed) {
+        if (focusThemes) {
+          localInsights.push({
+            channelName: channel.name,
+            videoTitle: video.title,
+            focusThemes,
+            sourceUrl: video.url,
+          })
+        } else {
+          localErrors.push(`${channel.name} / ${video.title}: Gemini解析失敗`)
+        }
+      }
+
+      return { localInsights, localErrors }
+    })
+  )
+
+  for (const r of perChannel) {
+    insights.push(...r.localInsights)
+    errors.push(...r.localErrors)
   }
 
   return { insights, errors }
