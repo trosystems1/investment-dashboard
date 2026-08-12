@@ -8,7 +8,6 @@ const BENCHMARK_CHANNELS = [
   { name: '投資アスクワン', handleUrl: 'https://www.youtube.com/@info_ask1' },
 ]
 
-const N8N_BENCHMARK_WEBHOOK_URL = 'https://n8n.srv958101.hstgr.cloud/webhook/aria-benchmark-ingest'
 const GEMINI_MODEL = 'gemini-2.5-flash'
 const MAX_VIDEOS_PER_CHANNEL = 2
 
@@ -57,6 +56,8 @@ async function getRecentVideoUrls(channelId: string, limit: number): Promise<{ t
 }
 
 // 3. Gemini APIで動画を直接読解し、注目テーマを抽出
+// 注意: REST(v1beta)を直接叩く場合、パーツのキーはスネークケース(file_data / file_uri)。
+//       キャメルケース(fileData / fileUri)は未知フィールド扱いで400になる。
 async function analyzeVideoWithGemini(videoUrl: string, channelName: string, title: string): Promise<string | null> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
@@ -76,7 +77,7 @@ async function analyzeVideoWithGemini(videoUrl: string, channelName: string, tit
         contents: [
           {
             parts: [
-              { fileData: { fileUri: videoUrl } },
+              { file_data: { file_uri: videoUrl } },
               { text: prompt },
             ],
           },
@@ -87,8 +88,11 @@ async function analyzeVideoWithGemini(videoUrl: string, channelName: string, tit
     const text = res.data?.candidates?.[0]?.content?.parts?.[0]?.text
     return text ? String(text).trim() : null
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    console.error(`[aria-benchmark] Gemini analysis failed for ${videoUrl}: ${msg}`)
+    // 400の理由はレスポンスボディに入る。message だけだと原因が分からないため中身を出す。
+    const detail = axios.isAxiosError(e)
+      ? `${e.message} :: ${JSON.stringify(e.response?.data ?? {}).slice(0, 500)}`
+      : (e instanceof Error ? e.message : String(e))
+    console.error(`[aria-benchmark] Gemini analysis failed for ${videoUrl}: ${detail}`)
     return null
   }
 }
@@ -127,10 +131,4 @@ export async function collectBenchmarkInsights(): Promise<{ insights: BenchmarkI
   }
 
   return { insights, errors }
-}
-
-// 5. n8nのARIA_Benchmark_Ingest Webhookへ送信
-export async function pushInsightsToN8n(insights: BenchmarkInsight[]): Promise<void> {
-  if (insights.length === 0) return
-  await axios.post(N8N_BENCHMARK_WEBHOOK_URL, { insights }, { timeout: 15000 })
 }
