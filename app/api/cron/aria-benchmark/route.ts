@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { collectBenchmarkInsights, pushInsightsToN8n } from '@/lib/aria-benchmark'
+import { collectBenchmarkInsights } from '@/lib/aria-benchmark'
+import { saveBenchmarkInsights, dateJST } from '@/lib/aria-hub'
 
 export const maxDuration = 60
 
@@ -12,7 +13,19 @@ export async function GET(req: Request) {
 
   try {
     const { insights, errors } = await collectBenchmarkInsights()
-    await pushInsightsToN8n(insights)
+
+    // 保存先はSupabase(aria_benchmark_insights)。
+    // 旧経路(n8n webhook aria-benchmark-ingest)は停止済みのため使用しない。
+    const analysisDate = dateJST()
+    await saveBenchmarkInsights(
+      insights.map(i => ({
+        analysisDate,
+        channelName: i.channelName,
+        videoTitle: i.videoTitle,
+        focusThemes: i.focusThemes,
+        sourceUrl: i.sourceUrl,
+      }))
+    )
 
     return NextResponse.json({
       ok: true,
