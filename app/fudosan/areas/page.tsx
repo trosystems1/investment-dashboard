@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { sb, supabaseConfig } from '@/lib/fudosan/supabase'
 import AreaExplorer, { type Area } from '@/components/fudosan/AreaExplorer'
 
-export const revalidate = 3600
+export const revalidate = 60
 
 const GOLD = '#C8A96A'
 const INK = '#E8E4D9'
