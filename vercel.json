@@ -27,6 +27,10 @@
     {
       "path": "/api/cron/aria-benchmark",
       "schedule": "0 19 * * *"
+    },
+    {
+      "path": "/api/cron/reinfolib",
+      "schedule": "0 3 1 * *"
     }
   ]
 }
