@@ -35,13 +35,18 @@ export type Property = {
 
 /** 相場データ（Supabase から引き当てて渡す） */
 export type MarketContext = {
-  matched_level?: 'district' | 'city' | 'none';
+  matched_level?: 'town' | 'area' | 'city' | 'none';
   district?: string | null;
-  station_unit_price_sqm_man?: number | null;  // 駅圏の成約㎡単価（万円）
+  scope_label?: string | null;                 // 「目黒区平町（町名）」など、何と比べたか
+  station_unit_price_sqm_man?: number | null;  // 成約㎡単価の中央値（万円）
   city_unit_price_sqm_man?: number | null;
   unit_price_trend_3y?: number | null;         // %
+  unit_price_trend_10y?: number | null;        // %
+  price_med_man?: number | null;               // その粒度の成約価格中央値（万円）
+  built_year_med?: number | null;
+  zoning_top?: string | null;
   land_price_trend_3y?: number | null;         // %
-  station_rent_1k_man?: number | null;         // 駅圏1K賃料（万円）
+  station_rent_1k_man?: number | null;         // 1K賃料相場（万円）
   trade_count?: number | null;
   tier?: string | null;
 };
@@ -301,15 +306,17 @@ export function evaluate(p: Property, market: MarketContext = {}, equityManOverr
     const own = price / area;
     const mkt = market.station_unit_price_sqm_man;
     const diff = +(((own / mkt) - 1) * 100).toFixed(1);
-    const lvl = market.matched_level === 'city'
-      ? `${p.city ?? ward ?? ''}の地区中央値`
-      : `${market.district ?? ''}地区の中央値`;
-    const tier = market.tier === 'compact' ? '20〜30㎡帯' : market.tier === 'city-median' ? '区内地区の中央値' : '全面積帯';
+    const scope = market.scope_label ?? `${market.district ?? p.city ?? ward ?? ''}周辺`;
+    const trend: string[] = [];
+    if (typeof market.unit_price_trend_3y === 'number') trend.push(`3年${market.unit_price_trend_3y > 0 ? '+' : ''}${market.unit_price_trend_3y}%`);
+    if (typeof market.unit_price_trend_10y === 'number') trend.push(`10年${market.unit_price_trend_10y > 0 ? '+' : ''}${market.unit_price_trend_10y}%`);
     M.unit_price_sqm_man = +own.toFixed(1);
     M.market_unit_price_sqm_man = mkt;
     M.price_vs_market = diff;
     M.market_level = market.matched_level ?? null;
-    M.market_note = `㎡単価 ${M.unit_price_sqm_man}万 vs 相場 ${mkt}万（${lvl}・${tier}・成約${market.trade_count ?? '—'}件）→ ${diff > 0 ? '+' : ''}${diff}%`;
+    M.market_scope = scope;
+    M.market_note = `㎡単価 ${M.unit_price_sqm_man}万 vs 相場 ${mkt}万（${scope}・成約${market.trade_count ?? '—'}件）→ ${diff > 0 ? '+' : ''}${diff}%`
+      + (trend.length ? `／相場推移 ${trend.join(' ')}` : '');
     if (own > mkt * 1.15) warnings.push({ tag: `㎡単価 ${M.unit_price_sqm_man}万は相場 ${mkt}万を${diff}%上回る`, pt: -12 });
     else if (own < mkt * 0.9) bonuses.push({ tag: `㎡単価が相場を${Math.abs(diff)}%下回る`, pt: 10 });
   } else {
