@@ -1,6 +1,7 @@
 -- 不動産投資（城南・区分マンション）スキーマ
 -- Supabase SQL Editor にそのまま貼って実行してください。
 -- 続けて scripts/fudosan-districts.sql も実行すること。
+-- 旧 schema を実行済みなら scripts/fudosan-trades-drop-unique.sql も実行。
 
 create extension if not exists "pgcrypto";
 
@@ -118,8 +119,10 @@ create table if not exists fudosan_trades (
   building_year     text,
   structure         text,
   raw               jsonb,
-  fetched_at        timestamptz not null default now(),
-  unique (city_code, district_name, station_name, period_year, period_quarter, trade_price, area_sqm)
+  fetched_at        timestamptz not null default now()
+  -- unique は付けない。国交省は価格・面積を丸めて公表するため、
+  -- 同じ町丁目・四半期・価格・面積の取引が複数あるのは正常。
+  -- 冪等性は (市区 × 年 × 四半期) の delete → insert で担保する。
 );
 create index if not exists idx_ft_city_period on fudosan_trades (city_code, period_year desc, period_quarter desc);
 create index if not exists idx_ft_station on fudosan_trades (station_name);

@@ -16,7 +16,7 @@ export function requireSupabase(): SbConfig {
 export async function sb<T>(
   path: string,
   init: RequestInit & { prefer?: string } = {},
-): Promise<{ data: T | null; error: string | null }> {
+): Promise<{ data: T | null; error: string | null; count: number | null }> {
   const cfg = requireSupabase()
   const headers: Record<string, string> = {
     apikey: cfg.key,
@@ -28,7 +28,10 @@ export async function sb<T>(
 
   const res = await fetch(`${cfg.url}/rest/v1/${path}`, { ...init, headers })
   const text = await res.text()
-  if (!res.ok) return { data: null, error: text.slice(0, 400) }
-  if (!text) return { data: null, error: null }
-  return { data: JSON.parse(text) as T, error: null }
+  const range = res.headers.get('content-range')
+  const countPart = range?.split('/')[1]
+  const count = countPart && countPart !== '*' ? Number(countPart) : null
+  if (!res.ok) return { data: null, error: text.slice(0, 400), count }
+  if (!text) return { data: null, error: null, count }
+  return { data: JSON.parse(text) as T, error: null, count }
 }

@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/fudosan/supabase'
 
-// 国土交通省「不動産情報ライブラリ」から城南4区の成約価格を取り込む。
-// 毎月1日 03:00 UTC 実行（vercel.json）。キーは https://www.reinfolib.mlit.go.jp/api/request/
+// 国土交通省「不動産情報ライブラリ」XIT001 から城南4区の成約価格を取り込む。
+// 毎月1日 03:00 UTC（vercel.json）。キーは https://www.reinfolib.mlit.go.jp/api/request/
 // 正はここ。n8n「不動産_城南エリアデータ蓄積」のスケジュールは無効化すること。
-// 同じ日に両方走ると fudosan_district_scores の unique(city, district, calculated_for) で衝突する。
+//
+// 使い方:
+//   /api/cron/reinfolib                       直近12四半期（3年）＋スコア再計算
+//   /api/cron/reinfolib?skip=12&quarters=12   3〜6年前（再計算なし）
+//   /api/cron/reinfolib?quarters=0&recalc=1   取り込み済みデータだけでスコア再計算
+//   XIT001 は 2005年まで遡れる。Hobby の60秒上限では quarters=12 が実用上の限界。
+//
+// 冪等性:
+// 国交省は価格を有効数字、面積を5㎡刻みで丸めて公表する。
+// 「同じ町丁目・四半期・価格・面積」の取引が複数あるのは正常なので、
+// unique upsert は使わず (市区 × 年 × 四半期) で delete → insert する。
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -31,6 +41,7 @@ type TradeRow = {
   BuildingYear?: string
   Structure?: string
   UnitPrice?: string
+  CityPlanning?: string
   Period?: string
 }
 
@@ -48,6 +59,7 @@ type StoredTrade = {
 async function fetchTrades(cityCode: string, year: number, quarter: number): Promise<TradeRow[]> {
   const url = `${API}/XIT001?year=${year}&quarter=${quarter}&city=${cityCode}`
   const res = await fetch(url, { headers: { 'Ocp-Apim-Subscription-Key': KEY } })
+  if (res.status === 404) return []
   if (!res.ok) throw new Error(`XIT001 ${cityCode} ${year}Q${quarter}: ${res.status}`)
   const json = (await res.json()) as { status?: string; data?: TradeRow[] }
   return json.data ?? []
@@ -69,18 +81,31 @@ export async function GET(req: NextRequest) {
   }
   if (!KEY) return NextResponse.json({ ok: false, error: 'REINFOLIB_API_KEY not set' }, { status: 500 })
 
+  const sp = new URL(req.url).searchParams
+  const backQuarters = Number(sp.get('quarters') ?? 12)
+  const skip = Number(sp.get('skip') ?? 0)
+  const recalcParam = sp.get('recalc')
+  const shouldRecalc = recalcParam === '1' || (recalcParam !== '0' && skip === 0 && backQuarters > 0)
+
   const now = new Date()
-  const backQuarters = Number(new URL(req.url).searchParams.get('quarters') ?? 12)
   const jobs: { year: number; quarter: number }[] = []
   let y = now.getFullYear()
   let q = Math.floor(now.getMonth() / 3) + 1
+
+  for (let i = 0; i < skip; i++) {
+    q -= 1
+    if (q === 0) { q = 4; y -= 1 }
+  }
   for (let i = 0; i < backQuarters; i++) {
     q -= 1
     if (q === 0) { q = 4; y -= 1 }
+    if (y < 2005) break
     jobs.push({ year: y, quarter: q })
   }
 
+  let fetched = 0
   let inserted = 0
+  let deleted = 0
   const errors: string[] = []
 
   for (const city of CITIES) {
@@ -88,7 +113,17 @@ export async function GET(req: NextRequest) {
       try {
         const rows = await fetchTrades(city.code, job.year, job.quarter)
         const mansions = rows.filter(r => (r.Type ?? '').includes('マンション'))
-        if (!mansions.length) { await sleep(300); continue }
+        fetched += mansions.length
+
+        // 未公表・空レスポンスでは既存を消さない（一時的な空応答で過去データを飛ばさない）
+        if (!mansions.length) { await sleep(250); continue }
+
+        const { error: delErr, count } = await sb(
+          `fudosan_trades?city_code=eq.${city.code}&period_year=eq.${job.year}&period_quarter=eq.${job.quarter}`,
+          { method: 'DELETE', prefer: 'return=minimal,count=exact' },
+        )
+        if (delErr) errors.push(`del ${city.name} ${job.year}Q${job.quarter}: ${delErr}`)
+        else deleted += count ?? 0
 
         const payload = mansions.map(r => {
           const price = Number(r.TradePrice ?? 0)
@@ -112,26 +147,44 @@ export async function GET(req: NextRequest) {
           }
         })
 
-        const { error } = await sb('fudosan_trades?on_conflict=city_code,district_name,station_name,period_year,period_quarter,trade_price,area_sqm', {
-          method: 'POST',
-          prefer: 'resolution=ignore-duplicates,return=minimal',
-          body: JSON.stringify(payload),
-        })
-        if (error) errors.push(`${city.name} ${job.year}Q${job.quarter}: ${error}`)
-        else inserted += payload.length
+        for (let i = 0; i < payload.length; i += 500) {
+          const chunk = payload.slice(i, i + 500)
+          const { error } = await sb('fudosan_trades', {
+            method: 'POST',
+            prefer: 'return=minimal',
+            body: JSON.stringify(chunk),
+          })
+          if (error) errors.push(`ins ${city.name} ${job.year}Q${job.quarter}: ${error}`)
+          else inserted += chunk.length
+        }
 
-        await sleep(500)
+        await sleep(400)
       } catch (e) {
         errors.push(String(e))
-        await sleep(1000)
+        await sleep(800)
       }
     }
   }
 
-  await recalcStationScores()
-  await recalcDistrictScores()
+  if (shouldRecalc) {
+    await recalcStationScores()
+    await recalcDistrictScores()
+  }
 
-  return NextResponse.json({ ok: true, inserted, errors: errors.slice(0, 20) })
+  const range = jobs.length
+    ? `${jobs[jobs.length - 1].year}Q${jobs[jobs.length - 1].quarter} 〜 ${jobs[0].year}Q${jobs[0].quarter}`
+    : 'none'
+
+  return NextResponse.json({
+    ok: true,
+    range,
+    quarters: jobs.length,
+    fetched,
+    deleted,
+    inserted,
+    recalc: shouldRecalc,
+    errors: errors.slice(0, 20),
+  })
 }
 
 async function fetchAllTrades(): Promise<StoredTrade[]> {
