@@ -23,7 +23,10 @@ export default async function FudosanPage() {
     <div className="p-4 md:p-6" style={{ minHeight: '100vh', background: '#0D0F14', color: '#E8E4D9' }}>
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <div style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>不動産</h2>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>不動産</h2>
+            <Link href="/fudosan/areas" style={{ fontSize: 13, color: '#C49C48', textDecoration: 'none' }}>エリア分析 →</Link>
+          </div>
           <p style={{ fontSize: 11, color: '#6B7280', margin: '4px 0 0', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
             Jonan Condo · Criteria v2.1
           </p>
