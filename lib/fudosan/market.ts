@@ -1,16 +1,35 @@
 import { sb, supabaseConfig } from './supabase'
 import type { MarketContext, Property } from './score'
 
-type DistrictRow = {
-  unit_price_sqm_man: number | null
-  unit_price_trend_3y: number | null
-  unit_price_sqm_man_compact: number | null
-  unit_price_trend_3y_compact: number | null
-  compact_count: number | null
-  trade_count: number | null
-  zoning_top?: string | null
-  avg_built_year?: number | null
+/**
+ * 相場の引き当ては fudosan_geo_stats（12年分の成約から作った土台ビュー）を見る。
+ * エリア分析画面 /fudosan/areas と同じ数字なので、画面と物件判定がズレない。
+ *
+ * 旧実装は fudosan_district_latest（月次スナップショット）を見ていた。
+ * あのテーブルの unit_price_sqm_man は「直近2年の成約」だけで作られるため、
+ * 生涯46件あっても直近に売買がない町（例: 目黒区平町）は NULL になり、
+ * 地区にヒットしたまま相場比較が黙って消えていた。
+ */
+type GeoRow = {
+  level: string | null
+  city: string
+  district: string
+  trade_count: number
+  unit_price_man: number | null
+  price_med_man: number | null
+  trend_3y: number | null
+  trend_10y: number | null
+  built_year_med: number | null
+  zoning_top: string | null
 }
+
+const SELECT =
+  'select=level,city,district,trade_count,unit_price_man,price_med_man,trend_3y,trend_10y,built_year_med,zoning_top'
+
+/** 町名で確定させるのに必要な最低成約件数。これ未満なら駅圏エリアまで引く。 */
+const MIN_TOWN_TRADES = 10
+
+const q = (v: string) => encodeURIComponent(v)
 
 /**
  * 住所から町丁目を切り出す。
@@ -33,57 +52,102 @@ export function parseAddress(address?: string | null, cityHint?: string | null) 
   return { city, district }
 }
 
-/** 町丁目スコアを引き当てる。無ければ区の中央値にフォールバック。 */
-export async function loadMarketContext(p: Property): Promise<MarketContext & {
-  matched_level?: 'district' | 'city' | 'none'
+type Resolved = MarketContext & {
+  matched_level?: 'town' | 'area' | 'city' | 'none'
   district?: string | null
-}> {
+}
+
+function toContext(
+  level: 'town' | 'area',
+  row: GeoRow,
+  district: string | null,
+  scopeLabel: string,
+): Resolved {
+  return {
+    matched_level: level,
+    district,
+    scope_label: scopeLabel,
+    station_unit_price_sqm_man: row.unit_price_man,
+    unit_price_trend_3y: row.trend_3y,
+    unit_price_trend_10y: row.trend_10y,
+    price_med_man: row.price_med_man,
+    built_year_med: row.built_year_med,
+    zoning_top: row.zoning_top,
+    trade_count: row.trade_count,
+    tier: '専有20〜30㎡',
+  }
+}
+
+/** 町名がどの駅圏エリアに属するかは Postgres 関数に集約されている。失敗しても黙って諦める。 */
+async function areaOf(city: string, district: string): Promise<string | null> {
+  try {
+    const { data, error } = await sb<unknown>('rpc/fudosan_area_of', {
+      method: 'POST',
+      body: JSON.stringify({ city, district }),
+    })
+    if (error || data == null) return null
+    if (typeof data === 'string') return data || null
+    if (Array.isArray(data) && typeof data[0] === 'string') return data[0] || null
+    return null
+  } catch {
+    return null
+  }
+}
+
+export async function loadMarketContext(p: Property): Promise<Resolved> {
   if (!supabaseConfig()) return { matched_level: 'none' }
 
   const { city, district } = parseAddress(p.address, p.city)
   if (!city) return { matched_level: 'none' }
 
+  // 1) 町名で当てる（いちばん細かい）
   if (district) {
-    const { data } = await sb<DistrictRow[]>(
-      `fudosan_district_latest?select=unit_price_sqm_man,unit_price_trend_3y,unit_price_sqm_man_compact,unit_price_trend_3y_compact,compact_count,trade_count,zoning_top,avg_built_year&city=eq.${encodeURIComponent(city)}&district=eq.${encodeURIComponent(district)}`,
+    const { data, error } = await sb<GeoRow[]>(
+      `fudosan_geo_stats?${SELECT}&level=eq.town&city=eq.${q(city)}&district=eq.${q(district)}&limit=1`,
     )
+    if (error) console.error('[fudosan/market] town lookup failed', error)
     const row = data?.[0]
-    if (row) {
-      const useCompact = (row.compact_count ?? 0) >= 5 && row.unit_price_sqm_man_compact != null
-      const unit = useCompact ? row.unit_price_sqm_man_compact : row.unit_price_sqm_man
-      // 地区の行はあっても直近成約がなく単価が NULL のことがある。
-      // その場合は「地区に当たった」で止めず、区中央値まで落として必ず比較対象を返す。
-      if (unit != null) {
-        return {
-          matched_level: 'district',
-          district,
-          station_unit_price_sqm_man: unit,
-          unit_price_trend_3y: useCompact ? row.unit_price_trend_3y_compact : row.unit_price_trend_3y,
-          trade_count: useCompact ? row.compact_count : row.trade_count,
-          tier: useCompact ? 'compact' : 'all',
-        }
+    if (row && row.unit_price_man != null && row.trade_count >= MIN_TOWN_TRADES) {
+      return toContext('town', row, district, `${city}${district}（町名）`)
+    }
+  }
+
+  // 2) 町名が薄ければ、その町を含む駅圏エリアまで引く
+  if (district) {
+    const area = await areaOf(city, district)
+    if (area) {
+      const { data, error } = await sb<GeoRow[]>(
+        `fudosan_geo_stats?${SELECT}&level=eq.area&city=eq.${q(city)}&district=eq.${q(area)}&limit=1`,
+      )
+      if (error) console.error('[fudosan/market] area lookup failed', error)
+      const row = data?.[0]
+      if (row && row.unit_price_man != null) {
+        return toContext('area', row, district, `${city}${area}エリア（駅圏）`)
       }
     }
   }
 
-  const { data: rows } = await sb<Pick<DistrictRow, 'unit_price_sqm_man_compact' | 'unit_price_sqm_man' | 'compact_count'>[]>(
-    `fudosan_district_latest?select=unit_price_sqm_man_compact,unit_price_sqm_man,compact_count&city=eq.${encodeURIComponent(city)}`,
+  // 3) それも無ければ区内エリアの中央値
+  const { data: rows, error: cityErr } = await sb<GeoRow[]>(
+    `fudosan_geo_stats?${SELECT}&level=eq.area&city=eq.${q(city)}`,
   )
+  if (cityErr) console.error('[fudosan/market] city lookup failed', cityErr)
+  const vals = (rows ?? [])
+    .map(r => r.unit_price_man)
+    .filter((v): v is number => typeof v === 'number')
+    .sort((a, b) => a - b)
 
-  if (rows?.length) {
-    const vals = rows
-      .map(r => ((r.compact_count ?? 0) >= 5 ? r.unit_price_sqm_man_compact : r.unit_price_sqm_man))
-      .filter((v): v is number => typeof v === 'number')
-      .sort((a, b) => a - b)
-    if (vals.length) {
-      return {
-        matched_level: 'city',
-        district,
-        city_unit_price_sqm_man: vals[Math.floor(vals.length / 2)],
-        station_unit_price_sqm_man: vals[Math.floor(vals.length / 2)],
-        trade_count: rows.length,
-        tier: 'city-median',
-      }
+  if (vals.length) {
+    const med = vals[Math.floor(vals.length / 2)]
+    const trades = (rows ?? []).reduce((s, r) => s + (r.trade_count ?? 0), 0)
+    return {
+      matched_level: 'city',
+      district,
+      scope_label: `${city}（区内${vals.length}エリアの中央値）`,
+      city_unit_price_sqm_man: med,
+      station_unit_price_sqm_man: med,
+      trade_count: trades,
+      tier: '専有20〜30㎡',
     }
   }
 
