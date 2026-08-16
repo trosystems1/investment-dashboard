@@ -41,6 +41,7 @@ export default async function FudosanDetailPage({ params }: { params: { id: stri
     ['BTCF', num(m.btcf) != null ? `${m.btcf}万/年` : '—'],
     ['自己資本増加', num(m.equity_gain) != null ? `${m.equity_gain}万（${m.equity_rate}%）` : '—'],
     ['㎡単価 vs 相場', num(m.price_vs_market) != null ? `${m.price_vs_market}%` : '—'],
+    ['必要家賃', num(m.rent_required_man) != null ? `${m.rent_required_man}万/月` : '—'],
   ]
 
   return (
@@ -93,6 +94,15 @@ export default async function FudosanDetailPage({ params }: { params: { id: stri
               </div>
             ))}
           </div>
+
+          {typeof m.market_note === 'string' && (
+            <p style={{ fontSize: 12, color: '#9CA3AF', margin: '14px 0 0', lineHeight: 1.6 }}>{m.market_note}</p>
+          )}
+          {row.rent_man == null && typeof m.rent_required_driver === 'string' && (
+            <p style={{ fontSize: 12, color: '#9CA3AF', margin: '6px 0 0', lineHeight: 1.6 }}>
+              賃料不明。基準クリアには月額 {String(m.rent_required_man)}万円以上が必要（律速: {m.rent_required_driver}）
+            </p>
+          )}
 
           <Section title="ハードNG" items={row.ng_reasons ?? []} />
           <Section title="減点" items={(row.warnings ?? []).map(w => w.tag)} />

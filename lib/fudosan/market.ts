@@ -50,13 +50,18 @@ export async function loadMarketContext(p: Property): Promise<MarketContext & {
     const row = data?.[0]
     if (row) {
       const useCompact = (row.compact_count ?? 0) >= 5 && row.unit_price_sqm_man_compact != null
-      return {
-        matched_level: 'district',
-        district,
-        station_unit_price_sqm_man: useCompact ? row.unit_price_sqm_man_compact : row.unit_price_sqm_man,
-        unit_price_trend_3y: useCompact ? row.unit_price_trend_3y_compact : row.unit_price_trend_3y,
-        trade_count: useCompact ? row.compact_count : row.trade_count,
-        tier: useCompact ? 'compact' : 'all',
+      const unit = useCompact ? row.unit_price_sqm_man_compact : row.unit_price_sqm_man
+      // 地区の行はあっても直近成約がなく単価が NULL のことがある。
+      // その場合は「地区に当たった」で止めず、区中央値まで落として必ず比較対象を返す。
+      if (unit != null) {
+        return {
+          matched_level: 'district',
+          district,
+          station_unit_price_sqm_man: unit,
+          unit_price_trend_3y: useCompact ? row.unit_price_trend_3y_compact : row.unit_price_trend_3y,
+          trade_count: useCompact ? row.compact_count : row.trade_count,
+          tier: useCompact ? 'compact' : 'all',
+        }
       }
     }
   }

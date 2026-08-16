@@ -35,6 +35,8 @@ export type Property = {
 
 /** 相場データ（Supabase から引き当てて渡す） */
 export type MarketContext = {
+  matched_level?: 'district' | 'city' | 'none';
+  district?: string | null;
   station_unit_price_sqm_man?: number | null;  // 駅圏の成約㎡単価（万円）
   city_unit_price_sqm_man?: number | null;
   unit_price_trend_3y?: number | null;         // %
@@ -193,6 +195,34 @@ export function evaluate(p: Property, market: MarketContext = {}, equityManOverr
   M.benchmark = +(bench * 100).toFixed(2);
   M.rent_for_benchmark_man = +((price * bench) / 12).toFixed(2);
 
+  // ---------- 必要家賃の逆算（賃料が読めなくても必ず出す） ----------
+  {
+    const total0 = price * (1 + CONFIG.loan.costRate);
+    const equity0 = Math.min(equityMan, total0);
+    const loan0 = Math.max(0, total0 - equity0);
+    const a0 = ads(loan0, CONFIG.loan.rate, CONFIG.loan.years);
+    const principal0 = Math.max(0, a0 - loan0 * CONFIG.loan.rate);
+    const appr0 = price * CONFIG.exit.apprRate;
+    const fixed0 = feeMan * 12 + price * CONFIG.ops.taxRate + CONFIG.ops.insuranceMan;
+    const keep = 1 - CONFIG.ops.vacancy - CONFIG.ops.pm;  // 賃料のうちNOIに残る割合
+    const rBtcf = (fixed0 + a0) / keep / 12;
+    const rEq = (fixed0 + a0 - principal0 - appr0 + equity0 * G.eqRateOk) / keep / 12;
+    const cands: Array<[string, number]> = [
+      ['ベンチマーク利回り', M.rent_for_benchmark_man as number],
+      ['BTCF±0', rBtcf],
+      [`自己資本増加率${(G.eqRateOk * 100).toFixed(1)}%`, rEq],
+      ['最低賃料ライン', G.minRentMan],
+    ];
+    const top = cands.reduce((x, y) => (y[1] > x[1] ? y : x));
+    Object.assign(M, {
+      rent_required_btcf0_man: +rBtcf.toFixed(2),
+      rent_required_eq_ok_man: +rEq.toFixed(2),
+      rent_required_man: +top[1].toFixed(2),
+      rent_required_driver: top[0],
+      fee_ratio_at_required_rent: +((feeMan / top[1]) * 100).toFixed(1),
+    });
+  }
+
   let btcf = 0, eqRate = 0, hasFin = false;
   if (rent) {
     hasFin = true;
@@ -260,17 +290,31 @@ export function evaluate(p: Property, market: MarketContext = {}, equityManOverr
     }
   } else {
     todo.push('現行賃料が不明。オーナーチェンジなら賃貸借契約書で現行賃料・契約日・契約種別を確認');
+    todo.push(`この価格で基準を満たすには月額 ${M.rent_required_man}万円以上が必要（律速: ${M.rent_required_driver}）。空室なら募集賃料、賃貸中なら現行賃料をこの線と比べる`);
+    if (market.station_rent_1k_man) {
+      todo.push(`地区の1K相場は ${market.station_rent_1k_man}万円。必要家賃 ${M.rent_required_man}万円が現実的に取れる水準かを確認`);
+    }
   }
 
   // ---------- 相場との突き合わせ（Supabaseの蓄積データ） ----------
   if (area && market.station_unit_price_sqm_man) {
     const own = price / area;
     const mkt = market.station_unit_price_sqm_man;
+    const diff = +(((own / mkt) - 1) * 100).toFixed(1);
+    const lvl = market.matched_level === 'city'
+      ? `${p.city ?? ward ?? ''}の地区中央値`
+      : `${market.district ?? ''}地区の中央値`;
+    const tier = market.tier === 'compact' ? '20〜30㎡帯' : market.tier === 'city-median' ? '区内地区の中央値' : '全面積帯';
     M.unit_price_sqm_man = +own.toFixed(1);
     M.market_unit_price_sqm_man = mkt;
-    M.price_vs_market = +(((own / mkt) - 1) * 100).toFixed(1);
-    if (own > mkt * 1.15) warnings.push({ tag: `㎡単価 ${M.unit_price_sqm_man}万は駅圏相場 ${mkt}万を${M.price_vs_market}%上回る`, pt: -12 });
-    else if (own < mkt * 0.9) bonuses.push({ tag: `㎡単価が駅圏相場を${Math.abs(M.price_vs_market as number)}%下回る`, pt: 10 });
+    M.price_vs_market = diff;
+    M.market_level = market.matched_level ?? null;
+    M.market_note = `㎡単価 ${M.unit_price_sqm_man}万 vs 相場 ${mkt}万（${lvl}・${tier}・成約${market.trade_count ?? '—'}件）→ ${diff > 0 ? '+' : ''}${diff}%`;
+    if (own > mkt * 1.15) warnings.push({ tag: `㎡単価 ${M.unit_price_sqm_man}万は相場 ${mkt}万を${diff}%上回る`, pt: -12 });
+    else if (own < mkt * 0.9) bonuses.push({ tag: `㎡単価が相場を${Math.abs(diff)}%下回る`, pt: 10 });
+  } else {
+    M.market_note = area ? '相場データなし（該当地区の成約サンプルが不足）' : '相場データなし（専有面積が読み取れず）';
+    M.market_level = market.matched_level ?? 'none';
   }
   if (rent && market.station_rent_1k_man && rent > market.station_rent_1k_man * 1.15) {
     warnings.push({ tag: `想定賃料 ${rent}万は駅圏相場 ${market.station_rent_1k_man}万を大きく上回る。賃料の妥当性を要確認`, pt: -10 });
@@ -348,7 +392,7 @@ export function evaluate(p: Property, market: MarketContext = {}, equityManOverr
 /** LINE通知用の短いテキスト */
 export function toMessage(p: Property, e: Evaluation): string {
   const mark = { A: '◎A', B: '○B', C: '△C', NG: '×NG', PENDING: '?情報不足' }[e.verdict];
-  const M = e.metrics as Record<string, number | undefined>;
+  const M = e.metrics as Record<string, number | string | boolean | null | undefined>;
   const L: string[] = [];
   L.push(`【物件診断】${mark}  スコア ${e.score ?? '—'}`);
   L.push(p.name ?? '物件');
@@ -362,6 +406,18 @@ export function toMessage(p: Property, e: Evaluation): string {
     L.push(`NOI ${M.noi}万 → BTCF ${M.btcf}万/年`);
     L.push(`自己資本増加 ${M.equity_gain}万/年（${M.equity_rate}%）`);
   }
+  if (M.market_note) {
+    L.push('');
+    L.push('■相場');
+    L.push(String(M.market_note));
+  }
+  if (!p.rent_man && M.rent_required_man) {
+    L.push('');
+    L.push('■賃料不明のため逆算');
+    L.push(`必要家賃 ${M.rent_required_man}万円/月（律速: ${M.rent_required_driver}）`);
+    L.push(`内訳 ベンチマーク ${M.rent_for_benchmark_man}万 / BTCF±0 ${M.rent_required_btcf0_man}万 / 自己資本増加 ${M.rent_required_eq_ok_man}万`);
+  }
+
   const sec = (t: string, arr: string[]) => {
     if (!arr.length) return;
     L.push('');
