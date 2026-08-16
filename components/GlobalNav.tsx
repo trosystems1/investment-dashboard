@@ -12,8 +12,16 @@ const NAV_ITEMS = [
   { label: 'アナリシス',   href: '/analysis' },
   { label: 'スクリーナー', href: '/screener' },
   { label: '不動産',       href: '/fudosan' },
+  { label: 'エリア',       href: '/fudosan/areas' },
   { label: 'セッティング', href: '/settings' },
 ]
+
+function navActive(pathname: string, href: string) {
+  const matches = NAV_ITEMS.filter(i =>
+    i.href === '/' ? pathname === '/' : pathname === i.href || pathname.startsWith(`${i.href}/`),
+  )
+  return matches.sort((a, b) => b.href.length - a.href.length)[0]?.href === href
+}
 
 export default function GlobalNav() {
   const pathname = usePathname()
@@ -63,7 +71,7 @@ export default function GlobalNav() {
 
           <div className="hidden md:flex" style={{ gap: 4, marginLeft: 32 }}>
             {NAV_ITEMS.map(item => {
-              const active = item.href === '/' ? pathname === '/' : pathname === item.href || pathname.startsWith(`${item.href}/`)
+              const active = navActive(pathname, item.href)
               return (
                 <Link key={item.href} href={item.href} style={{
                   fontSize: 12, padding: '6px 14px', borderRadius: 8,
@@ -110,7 +118,7 @@ export default function GlobalNav() {
             style={{ background: '#13161E', borderBottom: '0.5px solid rgba(255,255,255,0.07)', padding: '8px 0' }}
           >
             {NAV_ITEMS.map(item => {
-              const active = item.href === '/' ? pathname === '/' : pathname === item.href || pathname.startsWith(`${item.href}/`)
+              const active = navActive(pathname, item.href)
               return (
                 <Link key={item.href} href={item.href} onClick={() => setOpen(false)} style={{
                   display: 'block',
