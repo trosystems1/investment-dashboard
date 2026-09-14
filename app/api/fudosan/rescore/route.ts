@@ -17,6 +17,12 @@ export const maxDuration = 60
  * 既存の evaluation は消さずに追記する。criteria_version 別に残るので、
  * 「どの版で何件Aだったか」を後から比較できる。
  */
+/** __name は失敗行を特定するための内部用。Supabase へ送る前に落とす。 */
+function stripInternal(row: Record<string, unknown>): Record<string, unknown> {
+  const { __name: _drop, ...rest } = row
+  return rest
+}
+
 type Row = {
   id: string
   raw_json: Property | null
@@ -33,10 +39,11 @@ export async function POST(req: NextRequest) {
   }
 
   const limit = Number(req.nextUrl.searchParams.get('limit') ?? 200)
+  const offset = Number(req.nextUrl.searchParams.get('offset') ?? 0)
   const dryRun = req.nextUrl.searchParams.get('dry') === '1'
 
   const { data: rows, error } = await sb<Row[]>(
-    `fudosan_latest?select=id,raw_json,name,verdict,score,criteria_version&order=created_at.desc&limit=${limit}`,
+    `fudosan_latest?select=id,raw_json,name,verdict,score,criteria_version&order=created_at.desc&limit=${limit}&offset=${offset}`,
   )
   if (error || !rows) {
     return NextResponse.json({ ok: false, error: error ?? 'fetch failed' }, { status: 500 })
@@ -64,6 +71,7 @@ export async function POST(req: NextRequest) {
     }
 
     evaluations.push({
+      __name: row.name,
       property_id: row.id,
       criteria_version: CRITERIA_VERSION,
       verdict: e.verdict,
@@ -80,27 +88,53 @@ export async function POST(req: NextRequest) {
     })
   }
 
+  // Supabase は27件を1リクエストで挿入すると Bad Gateway を返した。
+  // 小さく刻んで入れ、塊が落ちたら1件ずつ入れ直す。
+  // 1件も通らなかった行だけ failures に残し、残りは進める。
+  // 全部止めてしまうと、どの行が原因か分からないまま何も反映されない。
+  const CHUNK = 5
+  const failures: Array<{ property_id: string; name: string | null; error: string }> = []
+  let inserted = 0
+
   if (!dryRun) {
-    for (let i = 0; i < evaluations.length; i += 50) {
-      const { error: insErr } = await sb('fudosan_evaluations', {
+    for (let i = 0; i < evaluations.length; i += CHUNK) {
+      const chunk = evaluations.slice(i, i + CHUNK)
+      const { error: chunkErr } = await sb('fudosan_evaluations', {
         method: 'POST',
         prefer: 'return=minimal',
-        body: JSON.stringify(evaluations.slice(i, i + 50)),
+        body: JSON.stringify(chunk.map(stripInternal)),
       })
-      if (insErr) {
-        return NextResponse.json(
-          { ok: false, error: insErr, inserted: i, criteria_version: CRITERIA_VERSION },
-          { status: 500 },
-        )
+      if (!chunkErr) {
+        inserted += chunk.length
+        continue
+      }
+      for (const row of chunk) {
+        const { error: rowErr } = await sb('fudosan_evaluations', {
+          method: 'POST',
+          prefer: 'return=minimal',
+          body: JSON.stringify([stripInternal(row)]),
+        })
+        if (rowErr) {
+          failures.push({
+            property_id: String(row.property_id),
+            name: String(row.__name ?? ''),
+            error: String(rowErr).slice(0, 300),
+          })
+        } else {
+          inserted += 1
+        }
       }
     }
   }
 
   return NextResponse.json({
-    ok: true,
+    ok: failures.length === 0,
     dry_run: dryRun,
     criteria_version: CRITERIA_VERSION,
     total: rows.length,
+    inserted,
+    failed: failures.length,
+    failures: failures.slice(0, 5),
     before,
     after,
     changed,
