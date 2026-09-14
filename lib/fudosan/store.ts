@@ -36,6 +36,11 @@ const LIST_SELECT = [
   'market_context', 'evaluated_at', 'created_at',
 ].join(',')
 
+/** ビューに gate 列を足す SQL（scripts/fudosan-rescore-view.sql）をまだ流していない環境向け */
+const LEGACY_SELECT = LIST_SELECT.split(',')
+  .filter(c => !c.startsWith('gate'))
+  .join(',')
+
 export async function listLatestProperties(limit = 200): Promise<{
   rows: FudosanLatestRow[]
   configured: boolean
@@ -44,11 +49,19 @@ export async function listLatestProperties(limit = 200): Promise<{
   const { data, error } = await sb<FudosanLatestRow[]>(
     `fudosan_latest?select=${LIST_SELECT}&order=created_at.desc&limit=${limit}`,
   )
-  if (error) {
-    console.error('[fudosan] list failed', error)
+  if (!error) return { rows: data ?? [], configured: true }
+
+  // gate2_fails などはビューに後から足した列。SQLをまだ流していない環境では
+  // 列が無くて400になる。そこで画面を白紙にせず、旧い列だけで読み直す。
+  console.error('[fudosan] list failed, retrying without gate columns', error)
+  const { data: fallback, error: fallbackErr } = await sb<FudosanLatestRow[]>(
+    `fudosan_latest?select=${LEGACY_SELECT}&order=created_at.desc&limit=${limit}`,
+  )
+  if (fallbackErr) {
+    console.error('[fudosan] list failed', fallbackErr)
     return { rows: [], configured: true }
   }
-  return { rows: data ?? [], configured: true }
+  return { rows: fallback ?? [], configured: true }
 }
 
 export async function getLatestProperty(id: string): Promise<FudosanLatestRow | null> {
