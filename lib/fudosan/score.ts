@@ -139,7 +139,7 @@ export function evaluate(p: Property, market: MarketContext = {}, equityManOverr
   // ---------- STEP 1: ハードNG ----------
   if (!ward) ng.push('城南4区（品川・目黒・大田・世田谷）以外');
   if (station && EXCLUDE_STATIONS.some(s => station.includes(s))) ng.push(`除外駅: ${station}`);
-  if (area !== null && area < G.minAreaSqm) ng.push(`専有面積 ${area}㎡ < ${G.minAreaSqm}㎡`);
+  if (area !== null && area < G.minAreaSqm) ng.push(`専有面積 ${area}㎡ < ${G.minAreaSqm}㎡（投資用ローンの下限18㎡に余裕がない）`);
   if (ward === '世田谷区' && area !== null && area < G.setagayaMinSqm) {
     ng.push(`世田谷区 かつ ${area}㎡ < ${G.setagayaMinSqm}㎡（20㎡台の㎡単価が区平均の49%）`);
   }
@@ -335,12 +335,23 @@ export function evaluate(p: Property, market: MarketContext = {}, equityManOverr
   }
 
   // ---------- 物理条件の減点 ----------
-  if (reg !== null && reg < G.minRegisteredSqm) {
-    warnings.push({
-      tag: `登記(内法)面積 ${M.registered_sqm}㎡${M.registered_sqm_estimated ? '（推定）' : ''} < 25㎡。買主が使える金融機関が激減し出口の流動性が構造的に低い`,
-      pt: -20,
-    });
-    todo.push('登記簿謄本で実際の登記面積を確認。25㎡を超えるか否かで出口の難易度が大きく変わる');
+  if (reg !== null) {
+    M.residential_exit_open = reg >= G.residentialExitSqm;
+    if (reg < G.minRegisteredSqm) {
+      warnings.push({
+        tag: `登記(内法)面積 ${M.registered_sqm}㎡${M.registered_sqm_estimated ? '（推定）' : ''} < ${G.minRegisteredSqm}㎡。投資用ローン自体は18㎡から出るが、自己資金を厚く求める行が増える`,
+        pt: -14,
+      });
+      todo.push('登記簿謄本で実際の登記面積を確認。出口で買主が使える金融機関の幅が変わる');
+    }
+    if (reg < G.residentialExitSqm) {
+      warnings.push({
+        tag: `登記(内法)面積が${G.residentialExitSqm}㎡未満。フラット35（マンション30㎡以上・登記なら28.31㎡以上）が使えず、出口の買主が投資家に限られる`,
+        pt: -8,
+      });
+    } else {
+      bonuses.push({ tag: `登記${M.registered_sqm}㎡でフラット35の基準を満たす。実需にも売れる`, pt: 8 });
+    }
   }
   if (ward && WARD[ward].penalty) warnings.push({ tag: `${ward}: ${WARD[ward].note}`, pt: WARD[ward].penalty });
   if (floor === 1) warnings.push({ tag: '1階住戸。賃貸希望者の約7割が2階以上を希望するため募集母集団が縮み、空室期間が非線形に伸びる', pt: -12 });
@@ -361,7 +372,6 @@ export function evaluate(p: Property, market: MarketContext = {}, equityManOverr
   if (p.management_type === '自主管理') warnings.push({ tag: '自主管理', pt: -10 });
   if (/巡回/.test(String(p.manager_type ?? ''))) warnings.push({ tag: '管理員は巡回（常駐でない）', pt: -3 });
   if (units !== null && units < 20) warnings.push({ tag: '総戸数20戸未満', pt: -5 });
-  if (area !== null && area < 28) warnings.push({ tag: '専有面積28㎡未満（登記が25㎡を切りやすい）', pt: -5 });
 
   // ---------- 加点 ----------
   if (station && PRIORITY_STATIONS.some(s => station.includes(s))) bonuses.push({ tag: `優先駅: ${station}`, pt: 8 });

@@ -18,6 +18,9 @@ export type FudosanLatestRow = {
   criteria_version: string | null
   metrics: Record<string, unknown> | null
   ng_reasons: string[] | null
+  gate2_fails: string[] | null
+  gate3_fails: string[] | null
+  gate4_fails: string[] | null
   warnings: Array<{ tag: string; pt: number }> | null
   todo: string[] | null
   market_context: Record<string, unknown> | null
@@ -28,7 +31,8 @@ export type FudosanLatestRow = {
 const LIST_SELECT = [
   'id', 'name', 'price_man', 'rent_man', 'area_sqm', 'built_ym', 'city',
   'address', 'line', 'station', 'walk_min', 'drive_link', 'verdict', 'score',
-  'criteria_version', 'metrics', 'ng_reasons', 'warnings', 'todo',
+  'criteria_version', 'metrics', 'ng_reasons', 'gate2_fails', 'gate3_fails', 'gate4_fails',
+  'warnings', 'todo',
   'market_context', 'evaluated_at', 'created_at',
 ].join(',')
 
