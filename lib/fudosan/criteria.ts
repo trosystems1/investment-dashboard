@@ -2,15 +2,22 @@
 // 閾値を変えたら CRITERIA_VERSION を必ず上げること。
 // 「いつ何を変えたら通過率がどう動いたか」が残らないと PDCA の Act が効かない。
 
-export const CRITERIA_VERSION = 'v2.1-jonan-wealth';
+export const CRITERIA_VERSION = 'v2.2-jonan-wealth';
 
 export const CONFIG = {
   loan: { rate: 0.022, years: 35, equityMan: 1500, costRate: 0.075 },
   ops: { vacancy: 0.05, pm: 0.05, insuranceMan: 1.5, taxRate: 0.0035 },
   exit: { holdYears: 15, apprRate: 0.010, apprStress: 0.0, sellCostRate: 0.04 },
   gates: {
-    minAreaSqm: 25,
-    minRegisteredSqm: 25,
+    // 面積の線は「融資が出るか」ではなく「誰に売れるか」で引く。実地で確認した境目は2つ。
+    //   1. 投資用マンションローン（例: オリックス銀行）… 1R/1K/1DK・専有18㎡以上40㎡未満
+    //      → 20㎡台前半でも投資家向けの融資は出る。ここを割ると土俵に乗らない
+    //   2. フラット35（マンション）… 30㎡以上。登記事項証明書で見るなら28.31㎡以上
+    //      → ここを割ると実需（自分で住む人）の出口が閉じ、買主が投資家に限られる
+    // 40㎡以上はオリックスでも「不動産投資ローン」という別商品に変わる（対象エリアも限定）。
+    minAreaSqm: 20,           // 壁芯。これ未満は投資用ローンの下限18㎡に余裕がなくNG
+    minRegisteredSqm: 25,     // 登記。割ると自己資金を厚く求める行が増える（減点）
+    residentialExitSqm: 28.31, // 登記。フラット35の下限。割ると実需の出口が閉じる（減点）
     wallToInnerRatio: 0.89,   // ワンルームの壁芯→内法 平均約11%減
     minRentMan: 11.0,
     targetRentMan: 12.0,

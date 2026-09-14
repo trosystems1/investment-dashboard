@@ -77,7 +77,15 @@ export default async function FudosanPage() {
             <tbody>
               {rows.map(r => {
                 const m = r.metrics ?? {}
-                const reason = (r.ng_reasons ?? [])[0] ?? ''
+                // NGだけでなく、収益性・資産形成・出口のどのゲートで落ちたかも出す。
+                // 理由が見えないと、なぜCなのかが画面から分からない。
+                const reason =
+                  (r.ng_reasons ?? [])[0] ??
+                  (r.gate2_fails ?? [])[0] ??
+                  (r.gate3_fails ?? [])[0] ??
+                  (r.gate4_fails ?? [])[0] ??
+                  (r.warnings ?? [])[0]?.tag ??
+                  ''
                 const style = VERDICT[r.verdict ?? 'PENDING'] ?? VERDICT.PENDING
                 const btcf = num(m.btcf)
                 return (
