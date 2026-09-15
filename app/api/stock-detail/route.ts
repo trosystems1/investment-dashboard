@@ -69,8 +69,11 @@ export async function GET(req: NextRequest) {
 
     const latest = quotes[quotes.length - 1]
     const prev = quotes.length > 1 ? quotes[quotes.length - 2] : latest
-    const high52 = year1Quotes.length ? Math.max(...year1Quotes.map((q: any) => q.H)) : latest?.H || 0
-    const low52 = year1Quotes.length ? Math.min(...year1Quotes.map((q:any) => q.L)) : latest?.L || 0
+    // 売買不成立日は H/L が null で返る。そのまま Math.min に渡すと 0 に化けるため事前に除く。
+    const highs52 = year1Quotes.map((q: any) => q.H).filter((v: any) => typeof v === 'number' && v > 0)
+    const lows52 = year1Quotes.map((q: any) => q.L).filter((v: any) => typeof v === 'number' && v > 0)
+    const high52 = highs52.length ? Math.max(...highs52) : latest?.H || 0
+    const low52 = lows52.length ? Math.min(...lows52) : latest?.L || 0
     const price = latest?.C || 0
     const waterLevel = high52 > low52 ? Math.round((price - low52) / (high52 - low52) * 100) : 50
     const history = quotes.map((q: any) => ({ date: q.Date.slice(5), value: q.C }))
