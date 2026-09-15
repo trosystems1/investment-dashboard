@@ -42,18 +42,20 @@ export async function GET(req: NextRequest) {
   const year1FromStr = year1From.toISOString().split("T")[0].replace(/-/g, "")
 
   try {
-    const [chartRes, year1Res, finRes, masterRes, shareholderRecord] = await Promise.all([
+    const [chartRes, year1Res, finRes, masterRes, shareholderRecord, valRes] = await Promise.all([
       fetch(`https://api.jquants.com/v2/equities/bars/daily?code=${code}&from=${from}&to=${to}`, { headers: { "x-api-key": apiKey } }),
       fetch(`https://api.jquants.com/v2/equities/bars/daily?code=${code}&from=${year1FromStr}&to=${to}`, { headers: { "x-api-key": apiKey } }),
       fetch(`https://api.jquants.com/v2/fins/summary?code=${code}`, { headers: { "x-api-key": apiKey } }),
       fetch(`https://api.jquants.com/v2/equities/master`, { headers: { "x-api-key": apiKey } }),
       getShareholderRecord(code),
+      fetch(`https://api.jquants.com/v2/equities/valuation?code=${code}`, { headers: { "x-api-key": apiKey } }),
     ])
 
     const chartJson = await chartRes.json()
     const year1Json = await year1Res.json()
     const finJson = await finRes.json()
     const masterJson = await masterRes.json()
+    const valJson = await valRes.json()
 
     const masterEntry = (masterJson.data || []).find((s: any) => s.Code === code)
     if (!masterEntry) return NextResponse.json({ error: "Unknown ticker" }, { status: 404 })
@@ -80,6 +82,25 @@ export async function GET(req: NextRequest) {
     const ta = parseFloat(latestFin.TA || "0")
     const eq = parseFloat(latestFin.Eq || "0")
     const per = eps > 0 ? parseFloat((price / eps).toFixed(1)) : 0
+
+    // バリュエーション指標（J-Quants公式・当日終値ベース）。
+    // code 指定は全期間が返るため、日付降順の先頭＝最新を使う。
+    const valRows = (valJson.data || []).sort((a: any, b: any) => String(b.Date).localeCompare(String(a.Date)))
+    const v = valRows[0] || {}
+    const valuation = {
+      date: v.Date ?? null,
+      per: v.PER ?? null,
+      fper: v.FwdPER ?? null,
+      pbr: v.PBR ?? null,
+      // ROE は小数で返るため %表記に直す（0.2310 → 23.1）
+      roe: v.ROE == null ? null : Math.round(v.ROE * 10000) / 100,
+      froe: v.FwdROE == null ? null : Math.round(v.FwdROE * 10000) / 100,
+      bps: v.BPS ?? null,
+      eps: v.EPS ?? null,
+      feps: v.FwdEPS ?? null,
+      // MktCap は百万円単位。億円に揃える
+      marketCap: v.MktCap == null ? null : Math.round(v.MktCap / 100),
+    }
 
     // 四半期データ（直近2期分のQ1〜FYを取得）
     const quarters = allFinData
@@ -137,6 +158,7 @@ export async function GET(req: NextRequest) {
       high52, low52, waterLevel, history,
       sales, op, np, eps, ta, eq, per,
       quarters,
+      valuation,
       finPeriod: latestFin.CurPerType || "",
       finDate: latestFin.DiscDate || "",
       nenkin: nenkinData,
