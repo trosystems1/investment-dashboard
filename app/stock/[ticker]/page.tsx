@@ -442,6 +442,43 @@ export default function StockPage() {
               </div>
             </div>
 
+                        {data.valHistory && data.valHistory.length > 5 && (() => {
+              const fpers = data.valHistory.map((d: any) => d.fper).filter((v: any) => typeof v === 'number')
+              const sorted = [...fpers].sort((a: number, b: number) => a - b)
+              const pct = (p: number) => sorted[Math.floor(sorted.length * p)]
+              const cur = data.valuation?.fper
+              const rank = cur != null && sorted.length
+                ? Math.round(sorted.filter((v: number) => v < cur).length / sorted.length * 100)
+                : null
+              return (
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                    <div style={{ fontSize: 12, color: '#6B7280', letterSpacing: '1px', textTransform: 'uppercase' }}>バリュエーション推移</div>
+                    {rank != null && (
+                      <div style={{ fontSize: 12, color: rank <= 30 ? '#4ADE80' : rank >= 70 ? '#F87171' : '#C49C48' }}>
+                        予想PER {cur}倍 ／ 過去レンジの下から{rank}%
+                      </div>
+                    )}
+                  </div>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <LineChart data={data.valHistory} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                      <XAxis dataKey="date" tick={{ fill: '#4B5563', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={40} />
+                      <YAxis tick={{ fill: '#4B5563', fontSize: 10 }} tickLine={false} axisLine={false} width={45} tickFormatter={(v: any) => v + 'x'} domain={['auto', 'auto']} />
+                      <Tooltip content={<ValTip />} />
+                      <Legend wrapperStyle={{ fontSize: 11, color: '#6B7280' }} />
+                      <ReferenceLine y={pct(0.5)} stroke="rgba(255,255,255,0.2)" strokeDasharray="4 4" />
+                      <Line type="monotone" dataKey="fper" name="予想PER" stroke="#C49C48" strokeWidth={2} dot={false} connectNulls />
+                      <Line type="monotone" dataKey="per" name="実績PER" stroke="#6B7280" strokeWidth={1.5} dot={false} connectNulls />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <div style={{ fontSize: 11, color: '#4B5563', marginTop: 8 }}>
+                    破線は予想PERの中央値 {pct(0.5)}倍。レンジ {sorted[0]}〜{sorted[sorted.length - 1]}倍（{data.valHistory.length}週分）
+                  </div>
+                </div>
+              )
+            })()}
+
             {data.quarters && data.quarters.length > 0 && (
               <div style={{ background: 'rgba(255,255,255,0.03)', border: '0.5px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
