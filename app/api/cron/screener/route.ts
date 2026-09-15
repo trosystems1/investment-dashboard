@@ -1,197 +1,237 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { gunzipSync } from 'zlib'
-import { Redis } from '@upstash/redis'
+'use client'
+import { useEffect, useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-})
-
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
-
-async function fetchWithRetry(url: string, headers: Record<string, string>, retries = 5): Promise<Response> {
-  for (let i = 0; i < retries; i++) {
-    const res = await fetch(url, { headers })
-    if (res.status !== 429) return res
-    await sleep(2000 * (i + 1))
-  }
-  throw new Error('Rate limit exceeded after retries')
+type Stock = {
+  code: string
+  name: string
+  sector: string
+  market: string | null
+  eps: number | null
+  feps: number | null
+  bps: number | null
+  pbr: number | null
+  per: number | null
+  fper: number | null
+  roe: number | null
+  froe: number | null
+  marketCap: number | null
 }
 
-function parseCSV(text: string): Record<string, string>[] {
-  const lines = text.split('\n').filter(l => l.trim().length > 0)
-  if (lines.length === 0) return []
-  const headers = lines[0].split(',').map(h => h.trim())
-  const rows: Record<string, string>[] = []
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',')
-    const row: Record<string, string> = {}
-    headers.forEach((h, idx) => { row[h] = cols[idx]?.trim() ?? '' })
-    rows.push(row)
-  }
-  return rows
-}
+type SortKey = keyof Stock
+type SortDir = 'asc' | 'desc'
 
-async function fetchBulkCSV(apiKey: string, endpoint: string, date: string): Promise<Record<string, string>[]> {
-  const getUrl = `https://api.jquants.com/v2/bulk/get?endpoint=${encodeURIComponent(endpoint)}&date=${date}`
-  const getRes = await fetchWithRetry(getUrl, { 'x-api-key': apiKey })
-  const getJson = await getRes.json()
-  if (!getJson.url) {
-    console.log(`bulk/get response for ${endpoint} ${date}:`, JSON.stringify(getJson))
-    return []
-  }
-  const fileRes = await fetch(getJson.url)
-  const buffer = Buffer.from(await fileRes.arrayBuffer())
-  const decompressed = gunzipSync(buffer).toString('utf-8')
-  return parseCSV(decompressed)
-}
+const MARKETS = ['すべて', 'プライム', 'スタンダード', 'グロース']
 
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+const COLUMNS: { key: SortKey; label: string; format: (v: any) => string; align: 'left' | 'right' }[] = [
+  { key: 'code',      label: 'コード',   format: v => v, align: 'right' },
+  { key: 'name',      label: '銘柄名',   format: v => v ?? '-', align: 'left' },
+  { key: 'market',    label: '市場',     format: v => v ? String(v).replace('東証', '') : '-', align: 'left' },
+  { key: 'sector',    label: '業種',     format: v => v ?? '-', align: 'left' },
+  { key: 'marketCap', label: '時価総額', format: v => v ? v.toLocaleString() + '億' : '-', align: 'right' },
+  { key: 'pbr',       label: 'PBR',      format: v => v ? v + '倍' : '-', align: 'right' },
+  { key: 'per',       label: 'PER',      format: v => v ? v + '倍' : '-', align: 'right' },
+  { key: 'fper',      label: '予想PER',  format: v => v ? v + '倍' : '-', align: 'right' },
+  { key: 'roe',       label: 'ROE',      format: v => v != null ? v + '%' : '-', align: 'right' },
+  { key: 'froe',      label: '予想ROE',  format: v => v != null ? v + '%' : '-', align: 'right' },
+  { key: 'bps',       label: 'BPS',      format: v => v ? v.toLocaleString() + '円' : '-', align: 'right' },
+]
 
-  const apiKey = process.env.JQUANTS_API_KEY!
+export default function ScreenerPage() {
+  const router = useRouter()
+  const [data, setData]       = useState<Stock[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch]   = useState('')
+  const [market, setMarket]   = useState('すべて')
+  const [sortKey, setSortKey] = useState<SortKey>('marketCap')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [filters, setFilters] = useState({
+    fperMax: '', froeMin: '', pbrMax: '', mcapMax: '',
+  })
+  const [page, setPage] = useState(1)
+  const pageSize = 200
 
-  try {
-    const masterRes = await fetchWithRetry(
-      'https://api.jquants.com/v2/equities/master',
-      { 'x-api-key': apiKey }
-    )
-    const masterJson = await masterRes.json()
-    const primeStocks = (masterJson.data || []).filter(
-      (s: any) => s.Mkt === '0111'
-    )
+  useEffect(() => {
+    fetch('/api/screener')
+      .then(r => r.json())
+      .then(json => { setData(json.data || []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
 
-    const today = new Date()
+  useEffect(() => {
+    setPage(1)
+  }, [search, filters, market])
 
-    const target = new Date(today)
-    target.setDate(target.getDate() - 1)
-    while (target.getDay() === 0 || target.getDay() === 6) {
-      target.setDate(target.getDate() - 1)
-    }
-    const dateStr = target.toISOString().split('T')[0].replace(/-/g, '')
-
-    const primeCodes = primeStocks.map((s: any) => s.Code)
-
-    // 営業日（土日を除く）のリストを作成
-    // 四半期決算は約91日ごとに発表されるため、最低でも1四半期分+バッファを確保する
-    const LOOKBACK_BUSINESS_DAYS = 70 // 約98暦日 ≒ 1四半期(91日) + 余裕
-    const businessDays: string[] = []
-    {
-      const cursor = new Date(today)
-      cursor.setDate(cursor.getDate() - 1) // 今日は決算未確定の可能性があるため前日から
-      while (businessDays.length < LOOKBACK_BUSINESS_DAYS) {
-        if (cursor.getDay() !== 0 && cursor.getDay() !== 6) {
-          businessDays.push(cursor.toISOString().split('T')[0])
-        }
-        cursor.setDate(cursor.getDate() - 1)
-      }
-    }
-
-    const finMap: Record<string, any> = {}
-    const dailyCounts: Record<string, number> = {}
-    for (const day of businessDays) {
-      let paginationKey: string | undefined = undefined
-      let page = 0
-      let dayCount = 0
-      do {
-        const url: string = `https://api.jquants.com/v2/fins/summary?date=${day}${paginationKey ? `&pagination_key=${paginationKey}` : ''}`
-        const finRes = await fetchWithRetry(url, { 'x-api-key': apiKey})
-        const finJson = await finRes.json()
-        if (page === 0 && finJson.message) {
-          console.log(`fins/summary ${day} error message:`, finJson.message)
-        }
-        dayCount += finJson.data?.length || 0
-        for (const r of finJson.data || []) {
-          const code = r.Code
-          if (!finMap[code] || r.DiscDate > finMap[code].DiscDate) {
-            finMap[code] = r
-          }
-        }
-        paginationKey = finJson.pagination_key
-        page++
-        await sleep(1100) // J-Quants 60req/分のレート制限を避けるためのスリープ
-      } while (paginationKey && page < 5)
-      dailyCounts[day] = dayCount
-    }
-    console.log('fins/summary daily counts:', JSON.stringify(dailyCounts))
-    console.log('fins/summary lookback days:', LOOKBACK_BUSINESS_DAYS, 'total unique codes:', Object.keys(finMap).length)
-
-    const priceMap: Record<string, number> = {}
-    const dateHyphen = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`
-    try {
-      const priceRows = await fetchBulkCSV(apiKey, '/equities/bars/daily', dateHyphen)
-      console.log('bulk price rows (raw):', priceRows.length)
-      const targetRows = priceRows.filter(r => r.Date === dateHyphen)
-      console.log('bulk price rows (filtered to target date):', targetRows.length)
-      for (const row of targetRows) {
-        const code = row.Code
-        const price = parseFloat(row.C)
-        if (code && !isNaN(price)) {
-          priceMap[code] = price
-        }
-      }
-    } catch (e: any) {
-      console.log('bulk price fetch error:', e.message)
-    }
-    console.log('price fetch summary:', { total: primeCodes.length, success: Object.keys(priceMap).length })
-
-    const screenerData = primeStocks
-      .map((s: any) => {
-        const code = s.Code
-        const fin = finMap[code]
-        const price = priceMap[code]
-        if (!price || !fin) return null
-
-        const bps = parseFloat(fin.BPS) || 0
-        const eps = parseFloat(fin.EPS) || 0
-        const feps = parseFloat(fin.FEPS) || 0
-        const np = parseFloat(fin.NP) || 0
-        const eq = parseFloat(fin.Eq) || 0
-        const shOut = parseFloat(fin.ShOutFY) || 0
-        const fdivAnn = parseFloat(fin.FDivAnn) || 0
-        const sales = parseFloat(fin.Sales) || 0
-        const op = parseFloat(fin.OP) || 0
-
-        const pbr = bps > 0 ? price / bps : null
-        const per = eps > 0 ? price / eps : null
-        const fper = feps > 0 ? price / feps : null
-        const roe = eq > 0 ? (np / eq) * 100 : null
-        const divYield = fdivAnn > 0 ? (fdivAnn / price) * 100 : null
-        const marketCap = shOut > 0 ? price * shOut : null
-        const opMargin = sales > 0 ? (op / sales) * 100 : null
-
-        return {
-          code: code.slice(0, 4),
-          code5: code,
-          name: s.CoName,
-          sector: s.S33Nm,
-          price,
-          pbr: pbr ? Math.round(pbr * 100) / 100 : null,
-          per: per ? Math.round(per * 100) / 100 : null,
-          fper: fper ? Math.round(fper * 100) / 100 : null,
-          roe: roe ? Math.round(roe * 100) / 100 : null,
-          divYield: divYield ? Math.round(divYield * 100) / 100 : null,
-          marketCap: marketCap ? Math.round(marketCap / 1e8) : null,
-          opMargin: opMargin ? Math.round(opMargin * 100) / 100 : null,
-          updatedAt: new Date().toISOString(),
-        }
+  const filtered = useMemo(() => {
+    return data
+      .filter(s => {
+        if (search && !(s.name ?? '').includes(search) && !s.code.includes(search)) return false
+        if (market !== 'すべて' && !(s.market ?? '').includes(market)) return false
+        if (filters.fperMax && s.fper && s.fper > parseFloat(filters.fperMax)) return false
+        if (filters.froeMin && s.froe != null && s.froe < parseFloat(filters.froeMin)) return false
+        if (filters.pbrMax && s.pbr && s.pbr > parseFloat(filters.pbrMax)) return false
+        if (filters.mcapMax && s.marketCap && s.marketCap > parseFloat(filters.mcapMax)) return false
+        return true
       })
-      .filter(Boolean)
+      .sort((a, b) => {
+        const av = a[sortKey] as any
+        const bv = b[sortKey] as any
+        if (av == null) return 1
+        if (bv == null) return -1
+        return sortDir === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1)
+      })
+  }, [data, search, sortKey, sortDir, filters, market])
 
-    await redis.set('screener:prime', JSON.stringify(screenerData), { ex: 86400 * 2 })
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paged = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filtered.slice(start, start + pageSize)
+  }, [filtered, page])
 
-    return NextResponse.json({
-      success: true,
-      count: screenerData.length,
-      primeCount: primeStocks.length,
-      finCount: Object.keys(finMap).length,
-      priceCount: Object.keys(priceMap).length,
-      executedAt: new Date().toISOString(),
-    })
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('desc') }
   }
+
+  const cell = { padding: '8px 12px', fontSize: 12, borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#B8B4A8', whiteSpace: 'nowrap' as const }
+  const hcell = { ...cell, color: '#C49C48', cursor: 'pointer', userSelect: 'none' as const, fontWeight: 600 }
+  const inpBase = { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#B8B4A8', padding: '4px 8px', fontSize: 12 }
+  const inp = { ...inpBase, width: 90 }
+  const lbl = { fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 6 }
+
+  return (
+    <div className="p-4 md:p-6" style={{ minHeight: '100vh', background: '#0D0F14' }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+        <div style={{ marginBottom: 24 }}>
+          <h1 className="text-xl md:text-[20px]" style={{ color: '#C49C48', fontWeight: 600, margin: 0 }}>
+            東証全銘柄スクリーナー
+          </h1>
+          <p style={{ fontSize: 12, color: '#4B5563', marginTop: 4 }}>
+            {loading ? '読み込み中...' : `${filtered.length} / ${data.length} 銘柄`}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-4">
+          <input
+            placeholder="銘柄名・コード検索"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full sm:w-40"
+            style={inpBase}
+          />
+          <div style={{ display: 'flex', gap: 4 }}>
+            {MARKETS.map(m => (
+              <button
+                key={m}
+                onClick={() => setMarket(m)}
+                style={{
+                  fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', border: 'none',
+                  background: market === m ? 'rgba(196,156,72,0.15)' : 'rgba(255,255,255,0.05)',
+                  color: market === m ? '#C49C48' : '#6B7280',
+                }}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+          <label style={lbl}>
+            予想PER上限 <input placeholder="例: 15" value={filters.fperMax} onChange={e => setFilters(f => ({ ...f, fperMax: e.target.value }))} style={inp} />
+          </label>
+          <label style={lbl}>
+            予想ROE下限(%) <input placeholder="例: 12" value={filters.froeMin} onChange={e => setFilters(f => ({ ...f, froeMin: e.target.value }))} style={inp} />
+          </label>
+          <label style={lbl}>
+            PBR上限 <input placeholder="例: 1.5" value={filters.pbrMax} onChange={e => setFilters(f => ({ ...f, pbrMax: e.target.value }))} style={inp} />
+          </label>
+          <label style={lbl}>
+            時価総額上限(億) <input placeholder="例: 300" value={filters.mcapMax} onChange={e => setFilters(f => ({ ...f, mcapMax: e.target.value }))} style={inp} />
+          </label>
+          <button
+            onClick={() => { setFilters({ fperMax: '', froeMin: '', pbrMax: '', mcapMax: '' }); setMarket('すべて') }}
+            style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', border: 'none', background: 'rgba(255,255,255,0.05)', color: '#6B7280' }}
+          >
+            リセット
+          </button>
+        </div>
+
+        <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', background: 'rgba(255,255,255,0.02)' }}>
+            <thead>
+              <tr style={{ background: 'rgba(196,156,72,0.05)' }}>
+                {COLUMNS.map(col => (
+                  <th key={col.key} onClick={() => handleSort(col.key)} style={{ ...hcell, textAlign: col.align }}>
+                    {col.label} {sortKey === col.key ? (sortDir === 'desc' ? '↓' : '↑') : ''}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={COLUMNS.length} style={{ ...cell, textAlign: 'center', padding: 40, color: '#4B5563' }}>データ取得中...</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={COLUMNS.length} style={{ ...cell, textAlign: 'center', padding: 40, color: '#4B5563' }}>
+                  データがありません。Cronジョブを実行してください。
+                </td></tr>
+              ) : (
+                paged.map(s => (
+                  <tr key={s.code} style={{ cursor: 'pointer' }}
+                    onClick={() => router.push(`/stock/${s.code}.T`)}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(196,156,72,0.05)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    {COLUMNS.map(col => (
+                      <td key={col.key} style={{
+                        ...cell,
+                        textAlign: col.align,
+                        color: col.key === 'code' ? '#C49C48'
+                          : col.key === 'froe' && s.froe != null && s.froe >= 12 ? '#4ADE80'
+                          : col.key === 'roe' && s.roe != null && s.roe >= 8 ? '#4ADE80'
+                          : col.key === 'fper' && s.fper && s.fper < 15 ? '#4ADE80'
+                          : col.key === 'pbr' && s.pbr && s.pbr < 1 ? '#4ADE80'
+                          : '#B8B4A8',
+                      }}>
+                        {col.format(s[col.key])}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        {filtered.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+            <p style={{ fontSize: 11, color: '#4B5563', margin: 0 }}>
+              {(page - 1) * pageSize + 1}〜{Math.min(page * pageSize, filtered.length)}件目 / 全{filtered.length}件
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                style={{
+                  fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: page <= 1 ? 'default' : 'pointer',
+                  border: 'none', background: 'rgba(255,255,255,0.05)', color: page <= 1 ? '#374151' : '#B8B4A8',
+                }}
+              >
+                前へ
+              </button>
+              <span style={{ fontSize: 11, color: '#6B7280', display: 'flex', alignItems: 'center' }}>
+                {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                style={{
+                  fontSize: 11, padding: '4px 12px', borderRadius: 6, cursor: page >= totalPages ? 'default' : 'pointer',
+                  border: 'none', background: 'rgba(255,255,255,0.05)', color: page >= totalPages ? '#374151' : '#B8B4A8',
+                }}
+              >
+                次へ
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
