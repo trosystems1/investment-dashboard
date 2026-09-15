@@ -162,6 +162,7 @@ export async function GET(req: NextRequest) {
       sales, op, np, eps, ta, eq, per,
       quarters,
       valuation,
+      valHistory,
       finPeriod: latestFin.CurPerType || "",
       finDate: latestFin.DiscDate || "",
       nenkin: nenkinData,
