@@ -415,8 +415,13 @@ export default function StockPage() {
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
-                <Card label="PER" value={data.per > 0 ? data.per + 'x' : '-'} sub="株価÷予想EPS" />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                <Card label="PER（実績）" value={data.valuation?.per ? data.valuation.per + 'x' : '-'} sub="TTM純利益ベース" />
+                <Card label="予想PER" value={data.valuation?.fper ? data.valuation.fper + 'x' : '-'} sub="今期予想ベース" gold />
+                <Card label="PBR" value={data.valuation?.pbr ? data.valuation.pbr + 'x' : '-'} />
+                <Card label="時価総額" value={data.valuation?.marketCap ? data.valuation.marketCap.toLocaleString() + '億' : '-'} />
+                <Card label="ROE（実績）" value={data.valuation?.roe != null ? data.valuation.roe + '%' : '-'} sub="TTM・自己資本平均" />
+                <Card label="予想ROE" value={data.valuation?.froe != null ? data.valuation.froe + '%' : '-'} gold />
                 <Card label="総資産" value={fmtB(data.ta)} />
                 <Card label="純資産" value={fmtB(data.eq)} />
               </div>
