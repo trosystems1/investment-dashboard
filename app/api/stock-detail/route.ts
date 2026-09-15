@@ -104,6 +104,18 @@ export async function GET(req: NextRequest) {
       // MktCap は百万円単位。億円に揃える
       marketCap: v.MktCap == null ? null : Math.round(v.MktCap / 100),
     }
+    
+    // PER推移グラフ用。全期間から週次に間引いて渡す（1,220営業日 → 約250点）
+    const valHistory = valRows
+      .filter((r: any) => r.PER != null || r.FwdPER != null)
+      .reverse()
+      .filter((_: any, i: number) => i % 5 === 0)
+      .map((r: any) => ({
+        date: String(r.Date).slice(2),
+        per: r.PER ?? null,
+        fper: r.FwdPER ?? null,
+        pbr: r.PBR ?? null,
+      }))
 
     // 四半期データ（直近2期分のQ1〜FYを取得）
     const quarters = allFinData
