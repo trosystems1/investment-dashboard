@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
             floor_plan: r.FloorPlan ?? null,
             building_year: r.BuildingYear ?? null,
             structure: r.Structure ?? null,
-            raw: r as unknown as Record<string, unknown>,
+            zoning: r.CityPlanning ?? null,
           }
         })
 
