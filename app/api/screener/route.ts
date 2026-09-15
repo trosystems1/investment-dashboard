@@ -8,7 +8,7 @@ const redis = new Redis({
 
 export async function GET() {
   try {
-    const raw = await redis.get('screener:prime')
+    const raw = await redis.get('screener:all')
     if (!raw) {
       return NextResponse.json({ data: [], message: 'No data yet. Run cron first.' })
     }
