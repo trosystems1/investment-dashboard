@@ -232,6 +232,21 @@ const NenkinTip = ({ active, payload, label }: any) => {
   )
 }
 
+
+const ValTip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background: 'rgba(13,15,20,0.95)', border: '0.5px solid rgba(196,156,72,0.3)', padding: '8px 12px', borderRadius: 8, fontSize: 12 }}>
+      <div style={{ color: '#6B7280', marginBottom: 4 }}>{label}</div>
+      {payload.map((p: any) => (
+        <div key={p.dataKey} style={{ color: p.stroke }}>
+          {p.name} {p.value != null ? p.value + '倍' : '-'}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function WaterLevel({ pct }: { pct: number }) {
   const color = pct >= 70 ? '#F87171' : pct >= 40 ? '#C49C48' : '#4ADE80'
   return (
