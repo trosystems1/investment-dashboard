@@ -5,9 +5,10 @@ import { saveBenchmarkInsights, dateJST } from '@/lib/aria-hub'
 export const maxDuration = 60
 
 export async function GET(req: Request) {
+  // Vercel Cron は Authorization: Bearer <CRON_SECRET> を自動付与する。
+  // x-vercel-cron ヘッダーは外部から偽装できるため認証には使わない。
   const authHeader = req.headers.get('authorization')
-  const cronHeader = req.headers.get('x-vercel-cron')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}` && cronHeader !== '1') {
+  if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
