@@ -2,6 +2,7 @@ import {
   CRITERIA_VERSION, CONFIG, WARD, EXCLUDE_STATIONS, PRIORITY_STATIONS,
   FLOOD_WATCH, WEAK_LINES, REPAIR_GUIDELINE, LEGAL_LIFE_RC, REPAIR_COST_PER_UNIT_MAN,
 } from './criteria';
+import type { BuildingVacancy } from './vacancy';
 
 export type Property = {
   name?: string | null;
@@ -30,6 +31,7 @@ export type Property = {
   occupancy?: string | null;
   sublease?: boolean | null;
   repair_method?: string | null;
+  building_vacancy?: BuildingVacancy | null;  // ingest 時に Web 検索で付与
   [k: string]: unknown;
 };
 
@@ -334,6 +336,44 @@ export function evaluate(p: Property, market: MarketContext = {}, equityManOverr
     warnings.push({ tag: `駅圏の直近成約が ${market.trade_count}件と少ない（流動性が低い）`, pt: -8 });
   }
 
+  // ---------- 建物の賃貸募集率（空室の代理指標） ----------
+  let vacancyBlocksA = false;  // 最上位の閾値に当たったらAにしない
+  {
+    const v = p.building_vacancy;
+    const u = units ?? v?.total_units ?? null;
+    if (!v || v.status === 'skipped') {
+      M.vacancy_note = '空室（募集）状況は未調査';
+    } else if (v.status !== 'ok' || v.rent_listings == null) {
+      M.vacancy_note = `建物の賃貸募集状況は検索で確認できず${v.note ? `（${v.note}）` : ''}`;
+      todo.push('建物全体の賃貸中戸数・空室数を管理会社（重要事項調査報告書）で確認');
+    } else {
+      const n = v.rent_listings;
+      M.vacancy_listings = n;
+      M.vacancy_confidence = v.confidence ?? null;
+      M.vacancy_sources = v.sources ?? [];
+      if (!u) {
+        M.vacancy_note = `建物の賃貸募集 ${n}室（総戸数不明のため率は出せず）`;
+        todo.push('総戸数をマイソク・重要事項調査報告書で確認し、賃貸募集率を出す');
+      } else {
+        const rate = n / u;
+        M.vacancy_rate = +(rate * 100).toFixed(1);
+        M.vacancy_units = u;
+        M.vacancy_note = `建物の賃貸募集 ${n}室 / 総戸数 ${u}戸 → 募集率 ${M.vacancy_rate}%（信頼度 ${v.confidence ?? '—'}）`;
+        const hit = G.vacancy.find(t => rate >= t.minRate);
+        if (hit && v.confidence === 'low') {
+          todo.push(`検索上の賃貸募集率 ${M.vacancy_rate}% は建物の特定が不確かなため減点せず。管理会社で空室数を確認`);
+        } else if (hit && n >= G.vacancyMinListings) {
+          warnings.push({
+            tag: `建物の賃貸募集率 ${M.vacancy_rate}%（${n}室/${u}戸）: ${hit.label}。同じ建物で客付けを奪い合い、空室期間と賃料下落のリスクが高い`,
+            pt: hit.pt,
+          });
+          if (hit === G.vacancy[0]) vacancyBlocksA = true;
+          todo.push('管理会社に建物全体の空室数・平均空室期間・直近の成約賃料を確認。募集が多い理由（賃料設定・競合新築・設備）を把握する');
+        }
+      }
+    }
+  }
+
   // ---------- 物理条件の減点 ----------
   if (reg !== null) {
     M.residential_exit_open = reg >= G.residentialExitSqm;
@@ -396,7 +436,7 @@ export function evaluate(p: Property, market: MarketContext = {}, equityManOverr
   if (ng.length) { verdict = 'NG'; score = 0; }
   else if (!hasFin) verdict = 'PENDING';
   else if (g2.length || g3.length) verdict = 'C';
-  else if (eqRate >= G.eqRateOk && btcf >= 0 && !g4.length && (rent ?? 0) >= G.targetRentMan) verdict = 'A';
+  else if (eqRate >= G.eqRateOk && btcf >= 0 && !g4.length && (rent ?? 0) >= G.targetRentMan && !vacancyBlocksA) verdict = 'A';
   else verdict = 'B';
 
   return {
@@ -427,6 +467,11 @@ export function toMessage(p: Property, e: Evaluation): string {
     L.push('');
     L.push('■相場');
     L.push(String(M.market_note));
+  }
+  if (M.vacancy_note) {
+    L.push('');
+    L.push('■空室（建物の賃貸募集）');
+    L.push(String(M.vacancy_note));
   }
   if (!p.rent_man && M.rent_required_man) {
     L.push('');

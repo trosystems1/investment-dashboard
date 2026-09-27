@@ -3,6 +3,7 @@ import { evaluate, type Property } from '@/lib/fudosan/score'
 import { loadMarketContext } from '@/lib/fudosan/market'
 import { CRITERIA_VERSION } from '@/lib/fudosan/criteria'
 import { sb } from '@/lib/fudosan/supabase'
+import { lookupBuildingVacancy } from '@/lib/fudosan/vacancy'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -16,6 +17,9 @@ export const maxDuration = 60
  *
  * 既存の evaluation は消さずに追記する。criteria_version 別に残るので、
  * 「どの版で何件Aだったか」を後から比較できる。
+ *
+ * ?vacancy=1 を付けると、建物の賃貸募集件数がまだ無い物件だけ Web 検索して raw_json に保存してから判定する。
+ * 1件あたり最大35秒かかるので、limit=5 程度に刻んで offset をずらしながら叩くこと（並列で走る）。
  */
 /** __name は失敗行を特定するための内部用。Supabase へ送る前に落とす。 */
 function stripInternal(row: Record<string, unknown>): Record<string, unknown> {
@@ -41,12 +45,33 @@ export async function POST(req: NextRequest) {
   const limit = Number(req.nextUrl.searchParams.get('limit') ?? 200)
   const offset = Number(req.nextUrl.searchParams.get('offset') ?? 0)
   const dryRun = req.nextUrl.searchParams.get('dry') === '1'
+  const withVacancy = req.nextUrl.searchParams.get('vacancy') === '1'
 
   const { data: rows, error } = await sb<Row[]>(
     `fudosan_latest?select=id,raw_json,name,verdict,score,criteria_version&order=created_at.desc&limit=${limit}&offset=${offset}`,
   )
   if (error || !rows) {
     return NextResponse.json({ ok: false, error: error ?? 'fetch failed' }, { status: 500 })
+  }
+
+  // 建物の賃貸募集件数の補完（未取得 or 前回エラーの物件だけ）
+  let vacancyLooked = 0
+  if (withVacancy) {
+    const targets = rows.filter(r => r.raw_json && typeof r.raw_json === 'object'
+      && (!r.raw_json.building_vacancy || r.raw_json.building_vacancy.status === 'error'))
+    await Promise.all(targets.map(async r => {
+      const v = await lookupBuildingVacancy(r.raw_json as Property, 45000)
+      ;(r.raw_json as Property).building_vacancy = v
+      vacancyLooked += 1
+      if (!dryRun) {
+        const { error: uErr } = await sb(`fudosan_properties?id=eq.${r.id}`, {
+          method: 'PATCH',
+          prefer: 'return=minimal',
+          body: JSON.stringify({ raw_json: r.raw_json }),
+        })
+        if (uErr) console.error('[fudosan/rescore] raw_json update failed', r.id, uErr)
+      }
+    }))
   }
 
   const before: Record<string, number> = {}
@@ -132,6 +157,7 @@ export async function POST(req: NextRequest) {
     dry_run: dryRun,
     criteria_version: CRITERIA_VERSION,
     total: rows.length,
+    vacancy_looked_up: vacancyLooked,
     inserted,
     failed: failures.length,
     failures: failures.slice(0, 5),

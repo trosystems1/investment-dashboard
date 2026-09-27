@@ -2,7 +2,7 @@
 // 閾値を変えたら CRITERIA_VERSION を必ず上げること。
 // 「いつ何を変えたら通過率がどう動いたか」が残らないと PDCA の Act が効かない。
 
-export const CRITERIA_VERSION = 'v2.2-jonan-wealth';
+export const CRITERIA_VERSION = 'v2.3-jonan-wealth';
 
 export const CONFIG = {
   loan: { rate: 0.022, years: 35, equityMan: 1500, costRate: 0.075 },
@@ -28,6 +28,15 @@ export const CONFIG = {
     minRemainingLife: 22,
     setagayaMinSqm: 30,
     repairRatioNg: 0.70,
+    // 建物の賃貸募集率（募集中の部屋数 ÷ 総戸数）。Web検索で拾う推定値。
+    // 城南の単身向けは入退去の回転で常に数%は募集が出ているので、6%までは平常とみなす。
+    // 小さい建物は1室で率が跳ねるため、募集が minListings 室未満なら減点しない。
+    vacancy: [
+      { minRate: 0.15, pt: -25, label: '募集が集中' },
+      { minRate: 0.10, pt: -18, label: '募集が多い' },
+      { minRate: 0.06, pt: -10, label: 'やや多い' },
+    ],
+    vacancyMinListings: 2,
   },
 } as const;
 
