@@ -3,6 +3,7 @@ import { evaluate, toMessage, type Property } from '@/lib/fudosan/score'
 import { loadMarketContext } from '@/lib/fudosan/market'
 import { CRITERIA_VERSION } from '@/lib/fudosan/criteria'
 import { sb } from '@/lib/fudosan/supabase'
+import { lookupBuildingVacancy } from '@/lib/fudosan/vacancy'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -37,7 +38,13 @@ export async function POST(req: NextRequest) {
   }
 
   const p = body.property ?? {}
-  const market = await loadMarketContext(p)
+  // 建物の賃貸募集件数は Web 検索で拾う（最大35秒）。相場の引き当てと並行して走らせる。
+  // 検索結果は raw_json に残すので、rescore では検索し直さずに再利用される。
+  const [market, vacancy] = await Promise.all([
+    loadMarketContext(p),
+    p.building_vacancy ? Promise.resolve(p.building_vacancy) : lookupBuildingVacancy(p),
+  ])
+  p.building_vacancy = vacancy
   const evaluation = evaluate(p, market, body.equity_man)
   const message = toMessage(p, evaluation)
   const key = dedupeKey(p, body.file_id)

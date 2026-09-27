@@ -42,7 +42,11 @@ export default async function FudosanDetailPage({ params }: { params: { id: stri
     ['自己資本増加', num(m.equity_gain) != null ? `${m.equity_gain}万（${m.equity_rate}%）` : '—'],
     ['㎡単価 vs 相場', num(m.price_vs_market) != null ? `${m.price_vs_market}%` : '—'],
     ['必要家賃', num(m.rent_required_man) != null ? `${m.rent_required_man}万/月` : '—'],
+    ['建物の賃貸募集率', num(m.vacancy_rate) != null
+      ? `${m.vacancy_rate}%（${m.vacancy_listings}/${m.vacancy_units}戸）`
+      : num(m.vacancy_listings) != null ? `${m.vacancy_listings}室（率不明）` : '—'],
   ]
+  const vacancySources = Array.isArray(m.vacancy_sources) ? (m.vacancy_sources as unknown[]).filter((u): u is string => typeof u === 'string').slice(0, 3) : []
 
   return (
     <div className="p-4 md:p-6" style={{ minHeight: '100vh', background: '#0D0F14', color: '#E8E4D9' }}>
@@ -97,6 +101,14 @@ export default async function FudosanDetailPage({ params }: { params: { id: stri
 
           {typeof m.market_note === 'string' && (
             <p style={{ fontSize: 12, color: '#9CA3AF', margin: '14px 0 0', lineHeight: 1.6 }}>{m.market_note}</p>
+          )}
+          {typeof m.vacancy_note === 'string' && (
+            <p style={{ fontSize: 12, color: '#9CA3AF', margin: '6px 0 0', lineHeight: 1.6 }}>
+              {m.vacancy_note}
+              {vacancySources.map((u, i) => (
+                <a key={u} href={u} target="_blank" rel="noreferrer" style={{ color: '#C49C48', marginLeft: 8 }}>出典{i + 1}</a>
+              ))}
+            </p>
           )}
           {row.rent_man == null && typeof m.rent_required_driver === 'string' && (
             <p style={{ fontSize: 12, color: '#9CA3AF', margin: '6px 0 0', lineHeight: 1.6 }}>
