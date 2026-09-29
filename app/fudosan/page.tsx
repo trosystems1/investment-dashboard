@@ -15,9 +15,25 @@ function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null
 }
 
+/** 建物の賃貸募集率のセル。criteria.ts の閾値（6/10/15%）に合わせて色を付ける */
+function vacancyCell(m: Record<string, unknown>): { main: string; sub: string; color: string } {
+  const rate = num(m.vacancy_rate)
+  const n = num(m.vacancy_listings)
+  if (rate != null) {
+    const color = rate >= 15 ? '#F87171' : rate >= 10 ? '#FB923C' : rate >= 6 ? '#FBBF24' : '#E8E4D9'
+    return { main: `${rate}%`, sub: `${n ?? '—'}/${m.vacancy_units ?? '—'}戸`, color }
+  }
+  if (n != null) return { main: `${n}室`, sub: '総戸数不明', color: '#E8E4D9' }
+  if (typeof m.vacancy_note === 'string' && m.vacancy_note.includes('確認できず')) {
+    return { main: '取得失敗', sub: '', color: '#4B5563' }
+  }
+  return { main: '—', sub: '', color: '#4B5563' }
+}
+
 export default async function FudosanPage() {
   const { rows, configured } = await listLatestProperties()
   const count = (v: string) => rows.filter(r => r.verdict === v).length
+  const version = rows.find(r => r.criteria_version)?.criteria_version?.split('-')[0] ?? ''
 
   return (
     <div className="p-4 md:p-6" style={{ minHeight: '100vh', background: '#0D0F14', color: '#E8E4D9' }}>
@@ -28,7 +44,7 @@ export default async function FudosanPage() {
             <Link href="/fudosan/areas" style={{ fontSize: 13, color: '#C49C48', textDecoration: 'none' }}>エリア分析 →</Link>
           </div>
           <p style={{ fontSize: 11, color: '#6B7280', margin: '4px 0 0', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-            Jonan Condo · Criteria v2.1
+            Jonan Condo · Criteria {version || '—'}
           </p>
           <div style={{ width: 32, height: 2, background: 'linear-gradient(to right, #C49C48, transparent)', borderRadius: 1, marginTop: 8 }} />
         </div>
@@ -63,10 +79,10 @@ export default async function FudosanPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ color: '#6B7280', fontSize: 11 }}>
-                {['判定', '物件', '価格', '面積', '表面', 'BTCF', '自己資本増', '主な理由'].map((h, i) => (
+                {['判定', '物件', '価格', '面積', '表面', 'BTCF', '自己資本増', '空室', '主な理由'].map((h, i) => (
                   <th key={h} style={{
                     padding: '10px 12px',
-                    textAlign: i === 0 || i === 1 || i === 7 ? 'left' : 'right',
+                    textAlign: i === 0 || i === 1 || i === 8 ? 'left' : 'right',
                     fontWeight: 500,
                     borderBottom: '0.5px solid rgba(255,255,255,0.07)',
                     whiteSpace: 'nowrap',
@@ -88,6 +104,7 @@ export default async function FudosanPage() {
                   ''
                 const style = VERDICT[r.verdict ?? 'PENDING'] ?? VERDICT.PENDING
                 const btcf = num(m.btcf)
+                const vac = vacancyCell(m)
                 return (
                   <tr key={r.id}>
                     <td style={{ padding: '10px 12px', borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}>
@@ -134,6 +151,10 @@ export default async function FudosanPage() {
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}>
                       {num(m.equity_gain) != null ? `${m.equity_gain}（${m.equity_rate}%）` : '—'}
                     </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}>
+                      <span style={{ color: vac.color }}>{vac.main}</span>
+                      {vac.sub && <div style={{ fontSize: 10, color: '#6B7280', marginTop: 2 }}>{vac.sub}</div>}
+                    </td>
                     <td style={{ padding: '10px 12px', fontSize: 11, color: '#6B7280', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}>
                       {reason}
                     </td>
@@ -142,7 +163,7 @@ export default async function FudosanPage() {
               })}
               {!rows.length && (
                 <tr>
-                  <td colSpan={8} style={{ padding: '40px 12px', textAlign: 'center', color: '#4B5563' }}>
+                  <td colSpan={9} style={{ padding: '40px 12px', textAlign: 'center', color: '#4B5563' }}>
                     まだ物件がありません。Driveの受信箱フォルダにマイソクを置いてください。
                   </td>
                 </tr>
