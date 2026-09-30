@@ -2,7 +2,7 @@
 // 閾値を変えたら CRITERIA_VERSION を必ず上げること。
 // 「いつ何を変えたら通過率がどう動いたか」が残らないと PDCA の Act が効かない。
 
-export const CRITERIA_VERSION = 'v2.3-jonan-wealth';
+export const CRITERIA_VERSION = 'v2.3.1-jonan-wealth';
 
 export const CONFIG = {
   loan: { rate: 0.022, years: 35, equityMan: 1500, costRate: 0.075 },
@@ -37,6 +37,9 @@ export const CONFIG = {
       { minRate: 0.06, pt: -10, label: 'やや多い' },
     ],
     vacancyMinListings: 2,
+    // これ以上は検索の数え間違い（同じ部屋を複数の業者の掲載で重複して数えている）とみなして減点しない。
+    // 実例: 総戸数43戸に対して51室（118.6%）、39戸に34室（87.2%）が出た
+    vacancyImplausibleRate: 0.4,
   },
 } as const;
 

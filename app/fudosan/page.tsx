@@ -19,6 +19,9 @@ function num(v: unknown): number | null {
 function vacancyCell(m: Record<string, unknown>): { main: string; sub: string; color: string } {
   const rate = num(m.vacancy_rate)
   const n = num(m.vacancy_listings)
+  if (rate != null && m.vacancy_suspect === true) {
+    return { main: `${rate}%?`, sub: '重複の疑い', color: '#6B7280' }
+  }
   if (rate != null) {
     const color = rate >= 15 ? '#F87171' : rate >= 10 ? '#FB923C' : rate >= 6 ? '#FBBF24' : '#E8E4D9'
     return { main: `${rate}%`, sub: `${n ?? '—'}/${m.vacancy_units ?? '—'}戸`, color }

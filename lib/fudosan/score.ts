@@ -361,7 +361,11 @@ export function evaluate(p: Property, market: MarketContext = {}, equityManOverr
         M.vacancy_units = u;
         M.vacancy_note = `建物の賃貸募集 ${n}室 / 総戸数 ${u}戸 → 募集率 ${M.vacancy_rate}%（信頼度 ${v.confidence ?? '—'}）`;
         const hit = G.vacancy.find(t => rate >= t.minRate);
-        if (hit && v.confidence === 'low') {
+        if (n > u || rate >= G.vacancyImplausibleRate) {
+          M.vacancy_suspect = true;
+          M.vacancy_note += '・数え方に疑いあり（同じ部屋の重複掲載の可能性）';
+          todo.push(`検索上の賃貸募集 ${n}室/${u}戸（${M.vacancy_rate}%）は重複掲載を数えている可能性が高いため減点せず。SUUMO等で部屋番号単位に数え直すか、管理会社で空室数を確認`);
+        } else if (hit && v.confidence === 'low') {
           todo.push(`検索上の賃貸募集率 ${M.vacancy_rate}% は建物の特定が不確かなため減点せず。管理会社で空室数を確認`);
         } else if (hit && n >= G.vacancyMinListings) {
           warnings.push({
