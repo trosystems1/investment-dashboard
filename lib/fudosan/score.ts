@@ -3,6 +3,7 @@ import {
   FLOOD_WATCH, WEAK_LINES, REPAIR_GUIDELINE, LEGAL_LIFE_RC, REPAIR_COST_PER_UNIT_MAN,
 } from './criteria';
 import type { BuildingVacancy } from './vacancy';
+import { findWardAkiya, wardAkiyaNote } from './ward-akiya';
 
 export type Property = {
   name?: string | null;
@@ -374,6 +375,20 @@ export function evaluate(p: Property, market: MarketContext = {}, equityManOverr
     }
   }
 
+  // ---------- 区の空き家率（住宅・土地統計調査）：表示のみ・点数には入れない ----------
+  {
+    const wa = findWardAkiya(hay);
+    if (wa) {
+      Object.assign(M, {
+        ward_akiya_rate: wa.rate[2023],
+        ward_akiya_change5y: wa.change5y,
+        ward_akiya_rent_rate: wa.rentRate[2023],
+        ward_akiya_trend: wa.trend,
+        ward_akiya_note: wardAkiyaNote(wa),
+      });
+    }
+  }
+
   // ---------- 物理条件の減点 ----------
   if (reg !== null) {
     M.residential_exit_open = reg >= G.residentialExitSqm;
@@ -468,10 +483,11 @@ export function toMessage(p: Property, e: Evaluation): string {
     L.push('■相場');
     L.push(String(M.market_note));
   }
-  if (M.vacancy_note) {
+  if (M.vacancy_note || M.ward_akiya_note) {
     L.push('');
-    L.push('■空室（建物の賃貸募集）');
-    L.push(String(M.vacancy_note));
+    L.push('■空室');
+    if (M.vacancy_note) L.push(String(M.vacancy_note));
+    if (M.ward_akiya_note) L.push(String(M.ward_akiya_note));
   }
   if (!p.rent_man && M.rent_required_man) {
     L.push('');
