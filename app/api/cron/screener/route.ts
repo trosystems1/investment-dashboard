@@ -6,6 +6,9 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN!,
 })
 
+// 週末・祝日・Cron失敗が続いてもデータが消えないよう7日間保持する
+const SCREENER_TTL_SECONDS = 86400 * 7
+
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 async function fetchWithRetry(url: string, headers: Record<string, string>, retries = 5): Promise<Response> {
@@ -91,6 +94,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (!rows.length) {
+      console.error('[cron/screener] no valuation data in the last 5 business days')
       return NextResponse.json({ error: 'no valuation data in the last 5 business days' }, { status: 500 })
     }
 
@@ -121,7 +125,7 @@ export async function GET(req: NextRequest) {
         }
       })
 
-    await redis.set('screener:all', JSON.stringify(screenerData), { ex: 86400 * 2 })
+    await redis.set('screener:all', JSON.stringify(screenerData), { ex: SCREENER_TTL_SECONDS })
 
     const byMarket: Record<string, number> = {}
     for (const s of screenerData) {
@@ -136,9 +140,11 @@ export async function GET(req: NextRequest) {
       fetched: rows.length,
       masterCount: stocks.length,
       byMarket,
+      ttlSeconds: SCREENER_TTL_SECONDS,
       executedAt: new Date().toISOString(),
     })
   } catch (e: any) {
+    console.error('[cron/screener] failed:', e)
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
 }
