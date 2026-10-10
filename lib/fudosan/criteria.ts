@@ -2,7 +2,9 @@
 // 閾値を変えたら CRITERIA_VERSION を必ず上げること。
 // 「いつ何を変えたら通過率がどう動いたか」が残らないと PDCA の Act が効かない。
 
-export const CRITERIA_VERSION = 'v2.3.1-jonan-wealth';
+// v2.4.0: 1K賃料相場（住宅・土地統計調査）を判定に渡すようにした。
+// 閾値は据え置き（想定賃料 > 相場×1.15 で -10）。入力が null のままでは減点が一度も出ていなかった。
+export const CRITERIA_VERSION = 'v2.4.0-jonan-wealth';
 
 export const CONFIG = {
   loan: { rate: 0.022, years: 35, equityMan: 1500, costRate: 0.075 },
