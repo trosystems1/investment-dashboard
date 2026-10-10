@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getLatestProperty } from '@/lib/fudosan/store'
+import { parseAddress } from '@/lib/fudosan/market'
+import { fetchRentRows, formatRentMarketNote, resolveRentMarket } from '@/lib/fudosan/rent-market'
 import { findWardAkiya, wardAkiyaNote } from '@/lib/fudosan/ward-akiya'
 
 export const revalidate = 60
@@ -14,7 +16,9 @@ const VERDICT: Record<string, { bg: string; color: string; border: string }> = {
 }
 
 function num(v: unknown): number | null {
-  return typeof v === 'number' && Number.isFinite(v) ? v : null
+  if (typeof v === 'number' && Number.isFinite(v)) return v
+  if (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))) return Number(v)
+  return null
 }
 
 function Section({ title, items }: { title: string; items: string[] }) {
@@ -36,6 +40,23 @@ export default async function FudosanDetailPage({ params }: { params: { id: stri
   const m = row.metrics ?? {}
   // 区の空き家率は静的データなので、再判定を待たずに住所からその場で引く
   const wardAkiya = findWardAkiya([row.city, row.address].filter(Boolean).join(' '))
+  // 再スコア後は判定が使った粒度を出す。まだ無ければ、保存済みの賃料行（無ければ区の調査値）をその場で出す。
+  // 駅圏までの引き当ては再スコア側（areaOf が要る）。ここは町名か区まで。
+  const { city: rentCity, district: rentDistrict } = parseAddress(row.address, row.city)
+  const liveRent = typeof m.rent_market_note === 'string' || !rentCity
+    ? null
+    : resolveRentMarket(await fetchRentRows(), rentCity, rentDistrict, null)
+  const rentBench = num(m.rent_market_1k_man) ?? liveRent?.rent_1k_man ?? null
+  const stockBench = num(m.rent_market_stock_man) ?? liveRent?.rent_stock_man ?? null
+  const listedRent = num(row.rent_man)
+  const rentVs = num(m.rent_vs_market) ?? (
+    listedRent != null && rentBench != null ? +(((listedRent / rentBench) - 1) * 100).toFixed(1) : null
+  )
+  const rentNote = typeof m.rent_market_note === 'string'
+    ? m.rent_market_note
+    : liveRent
+      ? `${formatRentMarketNote(liveRent)}（減点への反映は再スコア後）`
+      : null
   const style = VERDICT[row.verdict ?? 'PENDING'] ?? VERDICT.PENDING
   const metricPairs: Array<[string, string]> = [
     ['表面利回り', num(m.gross_yield) != null ? `${m.gross_yield}%` : '—'],
@@ -45,6 +66,9 @@ export default async function FudosanDetailPage({ params }: { params: { id: stri
     ['自己資本増加', num(m.equity_gain) != null ? `${m.equity_gain}万（${m.equity_rate}%）` : '—'],
     ['㎡単価 vs 相場', num(m.price_vs_market) != null ? `${m.price_vs_market}%` : '—'],
     ['必要家賃', num(m.rent_required_man) != null ? `${m.rent_required_man}万/月` : '—'],
+    ['1K相場', rentBench != null ? `${rentBench}万` : '—'],
+    ['調査の在庫平均', stockBench != null ? `${stockBench}万` : '—'],
+    ['賃料 vs 1K相場', rentVs != null ? `${rentVs > 0 ? '+' : ''}${rentVs}%` : '—'],
     ['建物の賃貸募集率', num(m.vacancy_rate) != null
       ? `${m.vacancy_rate}%（${m.vacancy_listings}/${m.vacancy_units}戸）`
       : num(m.vacancy_listings) != null ? `${m.vacancy_listings}室（率不明）` : '—'],
@@ -104,6 +128,9 @@ export default async function FudosanDetailPage({ params }: { params: { id: stri
 
           {typeof m.market_note === 'string' && (
             <p style={{ fontSize: 12, color: '#9CA3AF', margin: '14px 0 0', lineHeight: 1.6 }}>{m.market_note}</p>
+          )}
+          {rentNote && (
+            <p style={{ fontSize: 12, color: '#9CA3AF', margin: '6px 0 0', lineHeight: 1.6 }}>{rentNote}</p>
           )}
           {typeof m.vacancy_note === 'string' && (
             <p style={{ fontSize: 12, color: '#9CA3AF', margin: '6px 0 0', lineHeight: 1.6 }}>
