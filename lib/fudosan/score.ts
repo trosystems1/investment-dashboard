@@ -4,7 +4,7 @@ import {
 } from './criteria';
 import type { BuildingVacancy } from './vacancy';
 import { findWardAkiya, wardAkiyaNote } from './ward-akiya';
-import { RENT_ABOVE_MARKET, formatRentMarketNote } from './rent-market';
+import { formatRentMarketNote } from './rent-market';
 
 export type Property = {
   name?: string | null;
@@ -50,11 +50,15 @@ export type MarketContext = {
   built_year_med?: number | null;
   zoning_top?: string | null;
   land_price_trend_3y?: number | null;         // %
-  station_rent_1k_man?: number | null;         // 1K賃料相場（万円/月）
+  station_rent_1k_man?: number | null;         // 判定に使う1K相場（万円/月）。在庫平均を補正した募集相当
+  rent_stock_1k_man?: number | null;           // 補正前の在庫平均（万円/月）。観測済みの募集賃料なら null
+  rent_basis?: 'stock' | 'asking' | null;
+  rent_correction_factor?: number | null;
+  rent_correction_as_of?: string | null;
   rent_level?: 'town' | 'area' | 'city' | null;
   rent_scope_label?: string | null;            // 「品川区（区）」など
   rent_source?: string | null;
-  rent_as_of?: string | null;                  // 調査基準日 YYYY-MM-DD
+  rent_as_of?: string | null;                  // 在庫調査の基準日 YYYY-MM-DD
   rent_segment?: string | null;
   rent_sample_n?: number | null;
   trade_count?: number | null;
@@ -335,12 +339,20 @@ export function evaluate(p: Property, market: MarketContext = {}, equityManOverr
     const bench = market.station_rent_1k_man;
     Object.assign(M, {
       rent_market_1k_man: bench,
+      rent_market_stock_man: market.rent_stock_1k_man ?? null,
+      rent_market_basis: market.rent_basis ?? null,
+      rent_market_correction_factor: market.rent_correction_factor ?? null,
+      rent_market_correction_as_of: market.rent_correction_as_of ?? null,
       rent_market_level: market.rent_level ?? null,
       rent_market_scope: scope,
       rent_market_source: market.rent_source ?? null,
       rent_market_as_of: market.rent_as_of ?? null,
       rent_market_note: formatRentMarketNote({
         rent_1k_man: bench,
+        rent_stock_man: market.rent_stock_1k_man ?? null,
+        rent_basis: market.rent_basis ?? null,
+        correction_factor: market.rent_correction_factor ?? null,
+        correction_as_of: market.rent_correction_as_of ?? null,
         scope_label: scope,
         as_of: market.rent_as_of ?? '—',
         segment: market.rent_segment ?? '1K相場',
@@ -349,10 +361,10 @@ export function evaluate(p: Property, market: MarketContext = {}, equityManOverr
     });
     if (rent) M.rent_vs_market = +(((rent / bench) - 1) * 100).toFixed(1);
     if (!rent) {
-      todo.push(`1K相場は ${bench}万円（${scope}）。必要家賃 ${M.rent_required_man}万円が現実的に取れる水準かを確認`);
-    } else if (rent > bench * RENT_ABOVE_MARKET) {
+      todo.push(`1K相場は ${bench}万円（${scope}・募集相当）。必要家賃 ${M.rent_required_man}万円が現実的に取れる水準かを確認`);
+    } else if (rent > bench * CONFIG.rent.aboveMarket) {
       warnings.push({ tag: `想定賃料 ${rent}万は${scope}の1K相場 ${bench}万を大きく上回る。賃料の妥当性を要確認`, pt: -10 });
-      todo.push('現行賃料が調査の在庫平均を上回る。在庫平均は古い契約を含むので、退去後の募集賃料とは限らない。募集相場で取り直してシミュレーションし直す');
+      todo.push('想定賃料が募集相当の1K相場を上回る。近傍の募集事例で取り直してシミュレーションし直す');
     }
   }
   if (typeof market.unit_price_trend_3y === 'number' && market.unit_price_trend_3y < 0) {

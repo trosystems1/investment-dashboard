@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sb } from '@/lib/fudosan/supabase'
 import {
-  JONAN_RENT_1K, RENT_AS_OF, RENT_PUBLISHED_AT, RENT_SEGMENT, RENT_SOURCE,
-  RENT_STATS_DATA_ID, parseEstatRentPayload, yenToMan,
+  JONAN_RENT_1K, RENT_AS_OF, RENT_CORRECTION_AS_OF, RENT_PUBLISHED_AT, RENT_SEGMENT, RENT_SOURCE,
+  RENT_STATS_DATA_ID, askingFromStockYen, correctionNote, parseEstatRentPayload, yenToMan,
 } from '@/lib/fudosan/rent-market'
 
 // 令和5年住宅・土地統計調査の1K相場（区）を取り直す。
 // 調査は5年ごとで、次回の公表まで数字はほぼ動かない。四半期に1回、
 // 公表値の訂正とアプリIDの疎通だけを見る。町名・駅圏の行は触らない。
+// 在庫の円額と、その時点の係数で掛けた募集相当のスナップショットを両方書く。
+// 判定はスナップショットを使わず、読むときに CONFIG.rent で掛け直す。
 //
 // ESTAT_APP_ID が無いときは何もしない（scripts/fudosan-rent-market.sql の値が残る）。
 // キーは https://www.e-stat.go.jp/api/ で発行する。
@@ -51,20 +53,30 @@ export async function GET(req: NextRequest) {
   }
 
   const now = new Date().toISOString()
-  const payload = parsed.map(r => ({
-    level: 'city',
-    city: r.city,
-    district: '',
-    rent_1k_yen: r.rent_1k_yen,
-    rent_1k_man: yenToMan(r.rent_1k_yen),
-    source: RENT_SOURCE,
-    as_of: RENT_AS_OF,
-    published_at: RENT_PUBLISHED_AT,
-    segment: RENT_SEGMENT,
-    stats_id: RENT_STATS_DATA_ID,
-    note: '抽出調査の在庫平均。募集賃料ではない。e-Statから更新。',
-    updated_at: now,
-  }))
+  const note = correctionNote()
+  const payload = parsed.map(r => {
+    const asking = askingFromStockYen(r.rent_1k_yen)
+    return {
+      level: 'city',
+      city: r.city,
+      district: '',
+      rent_1k_yen: r.rent_1k_yen,
+      rent_1k_man: yenToMan(r.rent_1k_yen),
+      rent_asking_yen: asking.askingYen,
+      rent_asking_man: asking.askingMan,
+      correction_factor: asking.factor,
+      correction_as_of: RENT_CORRECTION_AS_OF,
+      correction_note: note,
+      rent_basis: 'stock',
+      source: RENT_SOURCE,
+      as_of: RENT_AS_OF,
+      published_at: RENT_PUBLISHED_AT,
+      segment: RENT_SEGMENT,
+      stats_id: RENT_STATS_DATA_ID,
+      note: '抽出調査の在庫平均。判定は rent_asking_*（読むときに係数を掛け直した募集相当）を使う。e-Statから更新。',
+      updated_at: now,
+    }
+  })
 
   const { error } = await sb('fudosan_rent_market?on_conflict=level,city,district', {
     method: 'POST',
@@ -77,6 +89,13 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    updated: payload.map(r => ({ city: r.city, rent_1k_yen: r.rent_1k_yen, rent_1k_man: r.rent_1k_man })),
+    updated: payload.map(r => ({
+      city: r.city,
+      rent_1k_yen: r.rent_1k_yen,
+      rent_1k_man: r.rent_1k_man,
+      rent_asking_yen: r.rent_asking_yen,
+      rent_asking_man: r.rent_asking_man,
+      correction_factor: r.correction_factor,
+    })),
   })
 }

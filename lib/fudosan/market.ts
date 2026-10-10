@@ -111,6 +111,10 @@ function attachRent(
   return {
     ...base,
     station_rent_1k_man: rent.rent_1k_man,
+    rent_stock_1k_man: rent.rent_stock_man,
+    rent_basis: rent.rent_basis,
+    rent_correction_factor: rent.correction_factor,
+    rent_correction_as_of: rent.correction_as_of,
     rent_level: rent.level,
     rent_scope_label: rent.scope_label,
     rent_source: rent.source,

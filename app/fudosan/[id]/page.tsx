@@ -47,6 +47,7 @@ export default async function FudosanDetailPage({ params }: { params: { id: stri
     ? null
     : resolveRentMarket(await fetchRentRows(), rentCity, rentDistrict, null)
   const rentBench = num(m.rent_market_1k_man) ?? liveRent?.rent_1k_man ?? null
+  const stockBench = num(m.rent_market_stock_man) ?? liveRent?.rent_stock_man ?? null
   const listedRent = num(row.rent_man)
   const rentVs = num(m.rent_vs_market) ?? (
     listedRent != null && rentBench != null ? +(((listedRent / rentBench) - 1) * 100).toFixed(1) : null
@@ -66,6 +67,7 @@ export default async function FudosanDetailPage({ params }: { params: { id: stri
     ['㎡単価 vs 相場', num(m.price_vs_market) != null ? `${m.price_vs_market}%` : '—'],
     ['必要家賃', num(m.rent_required_man) != null ? `${m.rent_required_man}万/月` : '—'],
     ['1K相場', rentBench != null ? `${rentBench}万` : '—'],
+    ['調査の在庫平均', stockBench != null ? `${stockBench}万` : '—'],
     ['賃料 vs 1K相場', rentVs != null ? `${rentVs > 0 ? '+' : ''}${rentVs}%` : '—'],
     ['建物の賃貸募集率', num(m.vacancy_rate) != null
       ? `${m.vacancy_rate}%（${m.vacancy_listings}/${m.vacancy_units}戸）`
