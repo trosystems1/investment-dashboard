@@ -73,7 +73,8 @@ async function mapAreas(pairs: Array<[string, string]>): Promise<{ map: Map<stri
         const { data, error } = await sb<unknown>('rpc/fudosan_area_of', {
           ...cacheInit,
           method: 'POST',
-          body: JSON.stringify({ city, district }),
+          // 関数の引数名は (c, d)。{ city, district } で呼ぶと PGRST202 で全件失敗する
+          body: JSON.stringify({ c: city, d: district }),
         })
         const area =
           typeof data === 'string' ? data
@@ -147,7 +148,7 @@ async function build(): Promise<AreaAdjustedResult> {
   }
 }
 
-const cached = unstable_cache(build, ['fudosan-area-adjusted-v2'], {
+const cached = unstable_cache(build, ['fudosan-area-adjusted-v3'], {
   revalidate: DAY,
   tags: ['fudosan-area-adjusted'],
 })
