@@ -13,6 +13,15 @@ const VERDICT: Record<string, { bg: string; color: string; border: string }> = {
   PENDING: { bg: 'rgba(255,255,255,0.06)', color: '#9CA3AF', border: 'rgba(255,255,255,0.12)' },
 }
 
+function jst(iso: unknown, withTime = false): string | null {
+  if (typeof iso !== 'string' || !iso) return null
+  const d = new Date(iso)
+  if (!Number.isFinite(d.getTime())) return null
+  return withTime
+    ? d.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' })
+}
+
 function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null
 }
@@ -49,6 +58,13 @@ export default async function FudosanDetailPage({ params }: { params: { id: stri
       ? `${m.vacancy_rate}%（${m.vacancy_listings}/${m.vacancy_units}戸）`
       : num(m.vacancy_listings) != null ? `${m.vacancy_listings}室（率不明）` : '—'],
   ]
+  // 調査日まわり。取込（＝マイソクを診断した日）・最終判定・建物の空室を検索した日
+  const bv = (row.raw_json?.building_vacancy ?? null) as { checked_at?: unknown } | null
+  const dates: Array<[string, string | null]> = [
+    ['調査日', jst(row.created_at)],
+    ['最終判定', jst(row.evaluated_at, true)],
+    ['空室調査', jst(bv?.checked_at)],
+  ]
   const vacancySources = Array.isArray(m.vacancy_sources) ? (m.vacancy_sources as unknown[]).filter((u): u is string => typeof u === 'string').slice(0, 3) : []
 
   return (
@@ -78,6 +94,12 @@ export default async function FudosanDetailPage({ params }: { params: { id: stri
             {row.verdict ?? '—'} {row.score ?? ''}
           </span>
         </div>
+
+        <p style={{ fontSize: 12, color: '#9CA3AF', margin: '10px 0 0', display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+          {dates.map(([k, v]) => (
+            <span key={k}><span style={{ color: '#6B7280' }}>{k}</span> {v ?? '—'}</span>
+          ))}
+        </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginTop: 20 }}>
           {[

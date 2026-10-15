@@ -2,8 +2,11 @@ import Link from 'next/link'
 import { sb, supabaseConfig } from '@/lib/fudosan/supabase'
 import AreaExplorer, { type Area } from '@/components/fudosan/AreaExplorer'
 import { WARD_AKIYA_LIST, TOKUBETSU_KUBU, AKIYA_YEARS, AKIYA_FLAT_PT, type WardAkiya } from '@/lib/fudosan/ward-akiya'
+import { loadAreaAdjusted } from '@/lib/fudosan/area-adjusted'
 
 export const revalidate = 60
+// 築年調整の初回計算（成約1.5万件＋町名のRPC）が10秒を超えることがある。2回目以降は1日キャッシュ
+export const maxDuration = 60
 
 const GOLD = '#C8A96A'
 const INK = '#E8E4D9'
@@ -18,11 +21,37 @@ const PAST = AKIYA_YEARS.filter(y => y !== 2023)
 
 export default async function AreasPage() {
   let areas: Area[] = []
-  if (supabaseConfig()) {
-    const { data, error } = await sb<Area[]>('fudosan_area_stats?select=*&order=unit_price_man.desc')
-    if (error) console.error('[fudosan/areas]', error)
-    areas = data ?? []
-  }
+  const [stats, adjusted] = await Promise.all([
+    supabaseConfig()
+      ? sb<Area[]>('fudosan_area_stats?select=*&order=unit_price_man.desc')
+      : Promise.resolve({ data: [] as Area[], error: null }),
+    loadAreaAdjusted(),
+  ])
+  if (stats.error) console.error('[fudosan/areas]', stats.error)
+  // 築年調整の列は別計算。エリアの束ね方は同じ関数なので city × district で突き合わせる
+  const adjMap = new Map((adjusted?.rows ?? []).map(r => [`${r.city}|${r.district}`, r]))
+  areas = (stats.data ?? []).map(a => {
+    const r = adjMap.get(`${a.city}|${a.district}`)
+    return r
+      ? {
+          ...a,
+          unit_price_adj_man: r.unit_price_adj_man,
+          trend_10y_adj: r.trend_10y_adj,
+          trend_3y_adj: r.trend_3y_adj,
+          age_old: r.age_old,
+          age_recent: r.age_recent,
+        }
+      : a
+  })
+
+  // 単純中央値と築年調整で10年の評価が大きく食い違うエリア（売れる部屋の古さが変わった町）
+  const GAP_PT = 15
+  const misread = areas
+    .filter(a => a.trend_10y != null && a.trend_10y_adj != null && a.trade_count >= 50)
+    .map(a => ({ a, gap: (a.trend_10y_adj as number) - (a.trend_10y as number) }))
+    .filter(x => Math.abs(x.gap) >= GAP_PT)
+    .sort((x, y) => Math.abs(y.gap) - Math.abs(x.gap))
+    .slice(0, 6)
 
   const withTrend = areas.filter(a => a.trend_10y != null)
   const rising = [...withTrend].sort((a, b) => (b.trend_10y ?? 0) - (a.trend_10y ?? 0))
@@ -44,6 +73,11 @@ export default async function AreasPage() {
         </div>
         <div style={{ fontSize: 11.5, color: FAINT, letterSpacing: '0.12em', marginTop: 6 }}>
           JONAN · 20–30㎡ · 2014–2026 · MLIT REAL ESTATE LIBRARY
+        </div>
+        <div style={{ fontSize: 12, color: MUTED, marginTop: 6 }}>
+          データ取得日 {fmtDate(adjusted?.fetched_at)}
+          {adjusted?.latest_period ? ` · 最新の成約 ${adjusted.latest_period.replace('Q', '年第')}四半期` : ''}
+          {adjusted?.computed_at ? ` · 築年調整の計算 ${fmtDate(adjusted.computed_at)}` : ''}
         </div>
         <p style={{ fontSize: 13.5, color: MUTED, marginTop: 12, lineHeight: 1.8 }}>
           城南4区を駅圏エリアに束ね、区分ワンルーム帯の単価・価格帯・上昇率を12年分の実成約から出しています。<br />
@@ -89,7 +123,31 @@ export default async function AreasPage() {
         </section>
       )}
 
-      <AreaExplorer areas={areas} />
+      {misread.length > 0 && (
+        <section style={{ background: CARD, border: `1px solid ${LINE}`, borderRadius: 12, padding: '18px 20px', marginBottom: 24 }}>
+          <div style={{ fontSize: 14, color: INK }}>見かけの値動きに注意したいエリア</div>
+          <div style={{ fontSize: 12, color: MUTED, margin: '4px 0 16px', lineHeight: 1.8 }}>
+            売れた部屋の築年数が大きく変わり、単純な中央値の10年と、築{adjusted?.ref_age ?? 15}年・{adjusted?.ref_area ?? 25}㎡にそろえた10年が{GAP_PT}pt以上ずれているエリアです（成約50件以上）。
+            経年による下落は1年あたり約{Math.abs(adjusted?.age_slope_pct_per_year ?? 0)}%として補正しています。
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
+            {misread.map(({ a, gap }) => (
+              <div key={`${a.city}-${a.district}`} style={{ border: `1px solid ${LINE}`, borderRadius: 10, padding: '13px 15px' }}>
+                <div style={{ fontSize: 11.5, color: FAINT }}>{a.city}</div>
+                <div style={{ fontSize: 16, color: INK, marginTop: 1 }}>{a.district}</div>
+                <div style={{ fontSize: 13, color: MUTED, marginTop: 8, fontVariantNumeric: 'tabular-nums' }}>
+                  10年 {pctText(a.trend_10y)} → <b style={{ color: gap > 0 ? DOWN : UP, fontSize: 17 }}>{pctText(a.trend_10y_adj)}</b>
+                </div>
+                <div style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>
+                  売れた部屋の築年数 {a.age_old ?? '—'}年 → {a.age_recent ?? '—'}年
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <AreaExplorer areas={areas} slope={adjusted?.age_slope_pct_per_year ?? null} />
 
       <WardAkiyaSection />
     </main>
@@ -106,6 +164,16 @@ function Stat({ label, value, unit, accent }: { label: string; value: string; un
       {unit && <div style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>{unit}</div>}
     </div>
   )
+}
+
+function fmtDate(iso: string | null | undefined) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' })
+}
+
+function pctText(t: number | null | undefined) {
+  if (t == null) return '—'
+  return `${t > 0 ? '+' : ''}${t}%`
 }
 
 function sign(n: number) {

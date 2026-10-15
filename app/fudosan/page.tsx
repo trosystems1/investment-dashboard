@@ -11,6 +11,19 @@ const VERDICT: Record<string, { bg: string; color: string; border: string }> = {
   PENDING: { bg: 'rgba(255,255,255,0.06)', color: '#9CA3AF', border: 'rgba(255,255,255,0.12)' },
 }
 
+/** 調査日（＝マイソクを取り込んで診断した日）。日本時間の日付で出す */
+function jstDate(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' })
+}
+
+/** 何日前か。物件は数週間で売れて消えるので、古い行はひと目で分かるようにする */
+function daysAgo(iso: string | null | undefined, now: number): number | null {
+  if (!iso) return null
+  const t = new Date(iso).getTime()
+  return Number.isFinite(t) ? Math.max(0, Math.floor((now - t) / 86_400_000)) : null
+}
+
 function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null
 }
@@ -37,6 +50,9 @@ export default async function FudosanPage() {
   const { rows, configured } = await listLatestProperties()
   const count = (v: string) => rows.filter(r => r.verdict === v).length
   const version = rows.find(r => r.criteria_version)?.criteria_version?.split('-')[0] ?? ''
+  const now = Date.now()
+  const lastSurvey = rows.reduce<string | null>((m, r) => (!m || r.created_at > m ? r.created_at : m), null)
+  const lastJudge = rows.reduce<string | null>((m, r) => (r.evaluated_at && (!m || r.evaluated_at > m) ? r.evaluated_at : m), null)
 
   return (
     <div className="p-4 md:p-6" style={{ minHeight: '100vh', background: '#0D0F14', color: '#E8E4D9' }}>
@@ -48,6 +64,9 @@ export default async function FudosanPage() {
           </div>
           <p style={{ fontSize: 11, color: '#6B7280', margin: '4px 0 0', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
             Jonan Condo · Criteria {version || '—'}
+          </p>
+          <p style={{ fontSize: 12, color: '#9CA3AF', margin: '6px 0 0' }}>
+            最終調査 {jstDate(lastSurvey)} · 最終判定 {jstDate(lastJudge)}
           </p>
           <div style={{ width: 32, height: 2, background: 'linear-gradient(to right, #C49C48, transparent)', borderRadius: 1, marginTop: 8 }} />
         </div>
@@ -82,10 +101,10 @@ export default async function FudosanPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ color: '#6B7280', fontSize: 11 }}>
-                {['判定', '物件', '価格', '面積', '表面', 'BTCF', '自己資本増', '空室', '主な理由'].map((h, i) => (
+                {['判定', '物件', '価格', '面積', '表面', 'BTCF', '自己資本増', '空室', '調査日', '主な理由'].map((h, i) => (
                   <th key={h} style={{
                     padding: '10px 12px',
-                    textAlign: i === 0 || i === 1 || i === 8 ? 'left' : 'right',
+                    textAlign: i === 0 || i === 1 || i === 9 ? 'left' : 'right',
                     fontWeight: 500,
                     borderBottom: '0.5px solid rgba(255,255,255,0.07)',
                     whiteSpace: 'nowrap',
@@ -108,6 +127,7 @@ export default async function FudosanPage() {
                 const style = VERDICT[r.verdict ?? 'PENDING'] ?? VERDICT.PENDING
                 const btcf = num(m.btcf)
                 const vac = vacancyCell(m)
+                const age = daysAgo(r.created_at, now)
                 return (
                   <tr key={r.id}>
                     <td style={{ padding: '10px 12px', borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}>
@@ -158,6 +178,12 @@ export default async function FudosanPage() {
                       <span style={{ color: vac.color }}>{vac.main}</span>
                       {vac.sub && <div style={{ fontSize: 10, color: '#6B7280', marginTop: 2 }}>{vac.sub}</div>}
                     </td>
+                    <td
+                      title={r.evaluated_at ? `最終判定 ${new Date(r.evaluated_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}` : undefined}
+                      style={{ padding: '10px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}>
+                      <span style={{ color: age != null && age > 30 ? '#6B7280' : '#E8E4D9' }}>{jstDate(r.created_at)}</span>
+                      {age != null && <div style={{ fontSize: 10, color: '#6B7280', marginTop: 2 }}>{age === 0 ? '今日' : `${age}日前`}</div>}
+                    </td>
                     <td style={{ padding: '10px 12px', fontSize: 11, color: '#6B7280', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderBottom: '0.5px solid rgba(255,255,255,0.05)' }}>
                       {reason}
                     </td>
@@ -166,7 +192,7 @@ export default async function FudosanPage() {
               })}
               {!rows.length && (
                 <tr>
-                  <td colSpan={9} style={{ padding: '40px 12px', textAlign: 'center', color: '#4B5563' }}>
+                  <td colSpan={10} style={{ padding: '40px 12px', textAlign: 'center', color: '#4B5563' }}>
                     まだ物件がありません。Driveの受信箱フォルダにマイソクを置いてください。
                   </td>
                 </tr>
