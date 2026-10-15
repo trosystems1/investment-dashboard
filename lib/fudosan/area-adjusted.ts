@@ -25,6 +25,8 @@ export type AreaAdjusted = AdjRow & { city: string; district: string }
 
 export type AreaAdjustedResult = Omit<AdjResult, 'rows'> & {
   rows: AreaAdjusted[]
+  /** 町名→駅圏エリアの対応づけの結果。failed > 0 なら RPC が通っていない */
+  area_map: AreaMapStat
   /** fudosan_trades の最終取込日時（cron が国交省から取った日） */
   fetched_at: string | null
   /** データに含まれる最新の成約四半期（例: 2026年第2四半期 → "2026Q2"） */
@@ -58,14 +60,17 @@ async function fetchTrades(): Promise<TradeRow[]> {
   return pages.flat()
 }
 
+type AreaMapStat = { towns: number; mapped: number; same_name: number; failed: number; sample_error: string | null }
+
 /** 町名 → 駅圏エリア名。fudosan_area_stats と同じ関数を使う */
-async function mapAreas(pairs: Array<[string, string]>): Promise<Map<string, string>> {
+async function mapAreas(pairs: Array<[string, string]>): Promise<{ map: Map<string, string>; stat: AreaMapStat }> {
   const out = new Map<string, string>()
+  const stat: AreaMapStat = { towns: pairs.length, mapped: 0, same_name: 0, failed: 0, sample_error: null }
   const BATCH = 20
   for (let i = 0; i < pairs.length; i += BATCH) {
     await Promise.all(
       pairs.slice(i, i + BATCH).map(async ([city, district]) => {
-        const { data } = await sb<unknown>('rpc/fudosan_area_of', {
+        const { data, error } = await sb<unknown>('rpc/fudosan_area_of', {
           ...cacheInit,
           method: 'POST',
           body: JSON.stringify({ city, district }),
@@ -75,11 +80,17 @@ async function mapAreas(pairs: Array<[string, string]>): Promise<Map<string, str
             : Array.isArray(data) && typeof data[0] === 'string' ? data[0]
               : null
         // 関数がマッピングを持たない町は町名のまま（関数側の else d と同じ扱い）
+        // 呼び出し自体が失敗したら件数に残す。黙って町名単位に落ちると画面の行と突き合わなくなる
+        if (error) {
+          stat.failed += 1
+          stat.sample_error ??= error.slice(0, 300)
+        } else if (area && area !== district) stat.mapped += 1
+        else stat.same_name += 1
         out.set(`${city}|${district}`, area || district)
       }),
     )
   }
-  return out
+  return { map: out, stat }
 }
 
 async function fetchMeta(): Promise<{ fetched_at: string | null; latest_period: string | null }> {
@@ -104,7 +115,7 @@ async function build(): Promise<AreaAdjustedResult> {
   for (const r of raw) {
     if (r.city_name && r.district_name) pairs.set(`${r.city_name}|${r.district_name}`, [r.city_name, r.district_name])
   }
-  const areaOf = await mapAreas([...pairs.values()])
+  const { map: areaOf, stat: areaMap } = await mapAreas([...pairs.values()])
 
   const trades: AdjTrade[] = []
   for (const r of raw) {
@@ -131,11 +142,12 @@ async function build(): Promise<AreaAdjustedResult> {
       return { ...row, city, district }
     }),
     ...meta,
+    area_map: areaMap,
     computed_at: new Date().toISOString(),
   }
 }
 
-const cached = unstable_cache(build, ['fudosan-area-adjusted-v1'], {
+const cached = unstable_cache(build, ['fudosan-area-adjusted-v2'], {
   revalidate: DAY,
   tags: ['fudosan-area-adjusted'],
 })
