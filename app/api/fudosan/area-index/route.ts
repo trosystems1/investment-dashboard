@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { loadAreaAdjusted } from '@/lib/fudosan/area-adjusted'
+import { sb } from '@/lib/fudosan/supabase'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -23,6 +24,12 @@ export async function GET(req: NextRequest) {
 
   const res = await loadAreaAdjusted()
   if (!res) return NextResponse.json({ ok: false, error: 'load failed' }, { status: 500 })
+
+  // ?debug=rpc で PostgREST が公開している fudosan_area_of の引数定義を返す（対応づけが通らないときの調査用）
+  if (req.nextUrl.searchParams.get('debug') === 'rpc') {
+    const { data, error } = await sb<{ paths?: Record<string, unknown> }>('', { cache: 'no-store' })
+    return NextResponse.json({ ok: !error, error, area_map: res.area_map, rpc: data?.paths?.['/rpc/fudosan_area_of'] ?? null })
+  }
 
   const q = req.nextUrl.searchParams.get('q')
   const rows = q ? res.rows.filter(r => r.district.includes(q) || r.city.includes(q)) : res.rows
