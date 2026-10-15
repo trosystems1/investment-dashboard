@@ -26,6 +26,8 @@ export type FudosanLatestRow = {
   market_context: Record<string, unknown> | null
   evaluated_at: string | null
   created_at: string
+  /** 詳細（select=*）でだけ入る。建物の空室調査日 building_vacancy.checked_at などを持つ */
+  raw_json?: Record<string, unknown> | null
 }
 
 const LIST_SELECT = [

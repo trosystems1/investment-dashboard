@@ -35,13 +35,20 @@ export type Area = {
   n_recent: number;
   n_mid: number;
   n_old: number;
+  // 築年調整（lib/fudosan/age-adjust.ts）。築15年・25㎡にそろえた値。計算できないときは undefined
+  unit_price_adj_man?: number | null;
+  trend_10y_adj?: number | null;
+  trend_3y_adj?: number | null;
+  age_old?: number | null;
+  age_recent?: number | null;
 };
 
-type SortKey = 'unit_price_man' | 'trend_3y' | 'trend_10y' | 'price_med_man' | 'trade_count';
-type Axis = 'trend_3y' | 'trend_10y';
+type SortKey = 'unit_price_man' | 'trend_3y' | 'trend_10y' | 'trend_10y_adj' | 'price_med_man' | 'trade_count';
+type Axis = 'trend_3y' | 'trend_10y' | 'trend_10y_adj';
 
 const SORTS: { key: SortKey; label: string }[] = [
   { key: 'trend_10y', label: '10年上昇率' },
+  { key: 'trend_10y_adj', label: '10年（築年調整）' },
   { key: 'trend_3y', label: '直近3年' },
   { key: 'unit_price_man', label: '㎡単価' },
   { key: 'price_med_man', label: '中央価格' },
@@ -50,10 +57,11 @@ const SORTS: { key: SortKey; label: string }[] = [
 
 const AXES: { key: Axis; label: string; note: string }[] = [
   { key: 'trend_10y', label: '10年上昇率', note: '直近3年（2024–26）÷ 約10年前（2014–17）' },
+  { key: 'trend_10y_adj', label: '10年（築年調整）', note: '築15年・25㎡にそろえた㎡単価で、直近3年 ÷ 約10年前' },
   { key: 'trend_3y', label: '直近3年', note: '直近3年（2024–26）÷ その前3年（2021–23）' },
 ];
 
-export default function AreaExplorer({ areas }: { areas: Area[] }) {
+export default function AreaExplorer({ areas, slope }: { areas: Area[]; slope?: number | null }) {
   const [cities, setCities] = useState<string[]>([]);
   const [sort, setSort] = useState<SortKey>('trend_10y');
   const [axis, setAxis] = useState<Axis>('trend_10y');
@@ -66,7 +74,7 @@ export default function AreaExplorer({ areas }: { areas: Area[] }) {
       .filter(a => (cities.length ? cities.includes(a.city) : true))
       .filter(a => a.trade_count >= minN)
       .filter(a => (budget ? (a.price_med_man ?? 1e9) <= budget : true))
-      .sort((x, y) => (y[sort] ?? -1e9) - (x[sort] ?? -1e9));
+      .sort((x, y) => ((y[sort] as number | null | undefined) ?? -1e9) - ((x[sort] as number | null | undefined) ?? -1e9));
   }, [areas, cities, sort, budget, minN]);
 
   // 散布図に載せるのは、選んだ軸のトレンドが計算できたものだけ
@@ -173,10 +181,10 @@ export default function AreaExplorer({ areas }: { areas: Area[] }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, fontVariantNumeric: 'tabular-nums' }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
-                {['エリア', '件数', '㎡単価', '10年', '直近3年', '中央価格', '価格帯(25-75%)', '築年中央', '用途地域'].map((h, i) => (
+                {['エリア', '件数', '㎡単価', '10年', '10年（築年調整）', '直近3年', '中央価格', '価格帯(25-75%)', '築年中央', '用途地域'].map((h, i) => (
                   <th key={h} style={{
                     padding: '11px 12px', fontSize: 11.5, fontWeight: 600, color: FAINT,
-                    textAlign: i === 0 || i === 8 ? 'left' : 'right', borderBottom: `1px solid ${LINE}`, whiteSpace: 'nowrap',
+                    textAlign: i === 0 || i === 9 ? 'left' : 'right', borderBottom: `1px solid ${LINE}`, whiteSpace: 'nowrap',
                   }}>{h}</th>
                 ))}
               </tr>
@@ -195,6 +203,10 @@ export default function AreaExplorer({ areas }: { areas: Area[] }) {
                   </td>
                   <td style={{ ...td, color: INK }}>{a.unit_price_man ?? '—'}</td>
                   <td style={{ ...td, color: trendColor(a.trend_10y) }}>{fmtPct(a.trend_10y)}</td>
+                  <td style={{ ...td, color: trendColor(a.trend_10y_adj ?? null) }}
+                      title={adjTitle(a)}>
+                    {gapMark(a)}{fmtPct(a.trend_10y_adj ?? null)}
+                  </td>
                   <td style={{ ...td, color: trendColor(a.trend_3y) }}>{fmtPct(a.trend_3y)}</td>
                   <td style={{ ...td, color: INK }}>{a.price_med_man?.toLocaleString() ?? '—'}</td>
                   <td style={{ ...td, color: MUTED, fontSize: 12.5 }}>
@@ -205,7 +217,7 @@ export default function AreaExplorer({ areas }: { areas: Area[] }) {
                 </tr>
               ))}
               {!rows.length && (
-                <tr><td colSpan={9} style={{ ...td, textAlign: 'center', color: MUTED, padding: 36 }}>条件に合うエリアがありません</td></tr>
+                <tr><td colSpan={10} style={{ ...td, textAlign: 'center', color: MUTED, padding: 36 }}>条件に合うエリアがありません</td></tr>
               )}
             </tbody>
           </table>
@@ -217,10 +229,29 @@ export default function AreaExplorer({ areas }: { areas: Area[] }) {
         <b>10年</b>＝直近3年の㎡単価中央値 ÷ 約10年前（2014–17）の中央値。<b>直近3年</b>＝直近3年 ÷ その前3年（2021–23）。両側5件以上あるときだけ表示します。<br />
         同一物件の値上がりではなく、異なる物件群の中央値比較です。方向性の指標として扱ってください。<br />
         国交省は価格を有効数字、面積を5㎡刻みに丸めて公表するため、単価は粗い階段状になります。<br />
-        築年中央値が新しいエリアは築浅プレミアムが単価を押し上げています。単価だけで割高と判断しないこと。
+        築年中央値が新しいエリアは築浅プレミアムが単価を押し上げています。単価だけで割高と判断しないこと。<br />
+        <b>10年（築年調整）</b>＝1件ずつ「築15年・25㎡だったら」の㎡単価に換算してから中央値を比べた値。
+        売れた部屋が古くなった町（例: 旗の台）でも、場所の値動きを読み違えないための列です。
+        {slope != null && <> 経年による下落は1年あたり約{Math.abs(slope)}%（城南4区の実成約から推定）。</>}
+        {' '}<span style={{ color: GOLD }}>●</span> は単純な10年と15pt以上ずれている行。セルにカーソルを置くと、売れた部屋の築年数の変化が出ます。
       </p>
     </div>
   );
+}
+
+/** 単純な10年と築年調整の10年が15pt以上ずれている行に印を付ける */
+function gapMark(a: Area) {
+  if (a.trend_10y == null || a.trend_10y_adj == null) return null;
+  if (Math.abs(a.trend_10y_adj - a.trend_10y) < 15) return null;
+  return <span style={{ color: GOLD, marginRight: 5, fontSize: 9, verticalAlign: 'middle' }}>●</span>;
+}
+
+function adjTitle(a: Area) {
+  const parts = [];
+  if (a.age_old != null || a.age_recent != null) parts.push(`売れた部屋の築年数 ${a.age_old ?? '—'}年 → ${a.age_recent ?? '—'}年`);
+  if (a.unit_price_adj_man != null) parts.push(`築15年・25㎡換算の㎡単価 ${a.unit_price_adj_man}万`);
+  if (a.trend_3y_adj != null) parts.push(`直近3年（築年調整）${fmtPct(a.trend_3y_adj)}`);
+  return parts.join(' / ');
 }
 
 function fmtPct(t: number | null) {
@@ -303,17 +334,17 @@ function Scatter({ points, axis, onHover, hover }: {
 
       {hover && hover[axis] != null && (
         <g pointerEvents="none">
-          <rect x={Math.min(X(hover.unit_price_man!) + 12, W - 236)} y={Math.max(Y(hover[axis]!) - 60, 4)}
-                width={226} height={68} rx={7} fill="rgba(10,10,10,0.94)" stroke={LINE} />
-          <text x={Math.min(X(hover.unit_price_man!) + 24, W - 224)} y={Math.max(Y(hover[axis]!) - 40, 24)}
+          <rect x={Math.min(X(hover.unit_price_man!) + 12, W - 310)} y={Math.max(Y(hover[axis]!) - 60, 4)}
+                width={300} height={68} rx={7} fill="rgba(10,10,10,0.94)" stroke={LINE} />
+          <text x={Math.min(X(hover.unit_price_man!) + 24, W - 298)} y={Math.max(Y(hover[axis]!) - 40, 24)}
                 fontSize={12.5} fill={INK}>{hover.city}{hover.district}</text>
-          <text x={Math.min(X(hover.unit_price_man!) + 24, W - 224)} y={Math.max(Y(hover[axis]!) - 23, 41)}
+          <text x={Math.min(X(hover.unit_price_man!) + 24, W - 298)} y={Math.max(Y(hover[axis]!) - 23, 41)}
                 fontSize={11.5} fill={MUTED}>
             {hover.unit_price_man}万/㎡ · 中央{hover.price_med_man?.toLocaleString()}万 · {hover.trade_count}件
           </text>
-          <text x={Math.min(X(hover.unit_price_man!) + 24, W - 224)} y={Math.max(Y(hover[axis]!) - 7, 57)}
+          <text x={Math.min(X(hover.unit_price_man!) + 24, W - 298)} y={Math.max(Y(hover[axis]!) - 7, 57)}
                 fontSize={11.5} fill={MUTED}>
-            10年 {fmtPct(hover.trend_10y)} · 直近3年 {fmtPct(hover.trend_3y)}
+            10年 {fmtPct(hover.trend_10y)}（築年調整 {fmtPct(hover.trend_10y_adj ?? null)}）· 直近3年 {fmtPct(hover.trend_3y)}
           </text>
         </g>
       )}
