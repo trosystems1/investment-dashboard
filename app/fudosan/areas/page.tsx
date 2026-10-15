@@ -147,7 +147,7 @@ export default async function AreasPage() {
         </section>
       )}
 
-      <AreaExplorer areas={areas} slope={adjusted?.age_slope_pct_per_year ?? null} />
+      <AreaExplorer areas={areas} slope={adjusted?.age_slope_pct_per_year ?? null} latestPeriod={adjusted?.latest_period ?? null} />
 
       <WardAkiyaSection />
     </main>

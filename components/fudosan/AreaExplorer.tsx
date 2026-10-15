@@ -61,7 +61,7 @@ const AXES: { key: Axis; label: string; note: string }[] = [
   { key: 'trend_3y', label: '直近3年', note: '直近3年（2024–26）÷ その前3年（2021–23）' },
 ];
 
-export default function AreaExplorer({ areas, slope }: { areas: Area[]; slope?: number | null }) {
+export default function AreaExplorer({ areas, slope, latestPeriod }: { areas: Area[]; slope?: number | null; latestPeriod?: string | null }) {
   const [cities, setCities] = useState<string[]>([]);
   const [sort, setSort] = useState<SortKey>('trend_10y');
   const [axis, setAxis] = useState<Axis>('trend_10y');
@@ -225,7 +225,7 @@ export default function AreaExplorer({ areas, slope }: { areas: Area[]; slope?: 
       </div>
 
       <p style={{ fontSize: 12, color: FAINT, marginTop: 14, lineHeight: 1.8 }}>
-        出典: 国土交通省 不動産情報ライブラリ（不動産取引価格情報）。中古マンション等・専有20〜30㎡の成約 2014Q3〜2026Q1 から算出。<br />
+        出典: 国土交通省 不動産情報ライブラリ（不動産取引価格情報）。中古マンション等・専有20〜30㎡の成約 2014Q3〜{latestPeriod ?? '最新'} から算出。<br />
         <b>10年</b>＝直近3年の㎡単価中央値 ÷ 約10年前（2014–17）の中央値。<b>直近3年</b>＝直近3年 ÷ その前3年（2021–23）。両側5件以上あるときだけ表示します。<br />
         同一物件の値上がりではなく、異なる物件群の中央値比較です。方向性の指標として扱ってください。<br />
         国交省は価格を有効数字、面積を5㎡刻みに丸めて公表するため、単価は粗い階段状になります。<br />
