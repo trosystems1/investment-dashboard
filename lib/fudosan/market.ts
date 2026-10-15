@@ -83,7 +83,9 @@ async function areaOf(city: string, district: string): Promise<string | null> {
   try {
     const { data, error } = await sb<unknown>('rpc/fudosan_area_of', {
       method: 'POST',
-      body: JSON.stringify({ city, district }),
+      // 関数の引数名は (c, d)。以前は { city, district } で呼んでいて PGRST202 で毎回失敗し、
+      // 町名が薄い物件は駅圏エリアを飛ばして区中央値と比べていた（2026-10-15 に判明）
+      body: JSON.stringify({ c: city, d: district }),
     })
     if (error || data == null) return null
     if (typeof data === 'string') return data || null
