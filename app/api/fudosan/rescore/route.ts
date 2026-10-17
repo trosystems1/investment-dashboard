@@ -4,6 +4,7 @@ import { loadMarketContext } from '@/lib/fudosan/market'
 import { CRITERIA_VERSION } from '@/lib/fudosan/criteria'
 import { sb } from '@/lib/fudosan/supabase'
 import { lookupBuildingVacancy } from '@/lib/fudosan/vacancy'
+import { fetchRentRows } from '@/lib/fudosan/rent-market'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -79,6 +80,9 @@ export async function POST(req: NextRequest) {
   const changed: Array<{ name: string | null; from: string | null; to: string; score: number | null }> = []
   const evaluations: Record<string, unknown>[] = []
 
+  // 賃料相場は物件ごとに取りに行かない。200件 × 追加クエリだと 60秒に収まらない。
+  const rentRows = await fetchRentRows()
+
   for (const row of rows) {
     const p = row.raw_json
     before[row.verdict ?? 'なし'] = (before[row.verdict ?? 'なし'] ?? 0) + 1
@@ -87,7 +91,7 @@ export async function POST(req: NextRequest) {
       continue
     }
 
-    const market = await loadMarketContext(p)
+    const market = await loadMarketContext(p, rentRows)
     const e = evaluate(p, market)
     after[e.verdict] = (after[e.verdict] ?? 0) + 1
 

@@ -31,6 +31,10 @@
     {
       "path": "/api/cron/reinfolib",
       "schedule": "0 3 1 * *"
+    },
+    {
+      "path": "/api/cron/rent-market",
+      "schedule": "0 4 1 1,4,7,10 *"
     }
   ]
 }
