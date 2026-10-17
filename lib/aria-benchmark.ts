@@ -180,9 +180,16 @@ export async function collectBenchmarkInsights(): Promise<{ insights: BenchmarkI
       }
 
       for (const video of fresh.slice(0, MAX_VIDEOS_PER_CHANNEL)) {
-        const focusThemes = channel.mode === 'text'
+        // 【2026-10-17 追加】動画解析が失敗した日は、説明文からの要点で代替する。
+        // ばっちゃまは 10/6・10/7・10/9・10/14〜10/17 に動画解析が失敗（25秒の時間切れが濃厚）し、
+        // 何も保存されないまま n8n は 10/10 公開の古い動画を使い続けていた。
+        let focusThemes = channel.mode === 'text'
           ? await analyzeTextWithGemini(video, channel.name)
           : await analyzeVideoWithGemini(video, channel.name)
+        if (!focusThemes && channel.mode === 'video') {
+          focusThemes = await analyzeTextWithGemini(video, channel.name)
+          if (focusThemes) localErrors.push(`${channel.name}: 動画解析失敗のため説明文で代替（${video.url}）`)
+        }
         // タイトルに公開日を付けて保存する（n8n側・目視の両方で鮮度が分かるように）
         const titleWithDate = `${video.title}（公開 ${video.published ? ymdJst(video.published) : '日付不明'}）`
         if (focusThemes) {

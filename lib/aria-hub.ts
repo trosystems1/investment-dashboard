@@ -96,7 +96,7 @@ export async function listBenchmarkInsights(limit = 20): Promise<BenchmarkInsigh
   const { url, key } = cfg
   const res = await fetch(`${url}/rest/v1/aria_benchmark_insights?select=*&order=analysis_date.desc,created_at.desc&limit=${limit}`, {
     headers: { apikey: key, Authorization: `Bearer ${key}` },
-    next: { revalidate: 60 },
+    cache: 'no-store',
   })
   if (!res.ok) return []
   return res.json()
