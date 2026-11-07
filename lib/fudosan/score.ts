@@ -4,6 +4,7 @@ import {
 } from './criteria';
 import type { BuildingVacancy } from './vacancy';
 import { findWardAkiya, wardAkiyaNote } from './ward-akiya';
+import { findWardTaisha, wardTaishaNote, TAISHA_LATEST } from './ward-taisha';
 
 export type Property = {
   name?: string | null;
@@ -250,6 +251,22 @@ export function evaluate(p: Property, market: MarketContext = {}, equityManOverr
     const noiFixed = noi - ((M.repair_shortfall_man_year as number) ?? 0);
     eqRate = eqGain / equity;
 
+    // 金利ストレス（判定には使わない。変動金利で借りたあと、さらに上がった場合の手残り）
+    const aS = ads(loan, CONFIG.loan.stressRate, CONFIG.loan.years);
+    const principalS = Math.max(0, aS - loan * CONFIG.loan.stressRate);
+    const btcfS = noi - aS;
+    const eqRateS = (btcfS + principalS + appr) / equity;
+    Object.assign(M, {
+      loan_rate: +(CONFIG.loan.rate * 100).toFixed(2),
+      stress_rate: +(CONFIG.loan.stressRate * 100).toFixed(2),
+      btcf_stress: +btcfS.toFixed(1),
+      equity_rate_stress: +(eqRateS * 100).toFixed(2),
+      rate_note: `金利 ${(CONFIG.loan.rate * 100).toFixed(2)}% → ${(CONFIG.loan.stressRate * 100).toFixed(2)}% に上がると BTCF ${btcf.toFixed(1)}万 → ${btcfS.toFixed(1)}万/年、自己資本増加率 ${(eqRate * 100).toFixed(2)}% → ${(eqRateS * 100).toFixed(2)}%`,
+    });
+    if (btcfS < G.minBtcfMan && btcf >= G.minBtcfMan) {
+      todo.push(`金利が${(CONFIG.loan.stressRate * 100).toFixed(2)}%まで上がると年${(-btcfS).toFixed(1)}万円の持ち出しになる。固定期間つきの商品や自己資金の上乗せを検討`);
+    }
+
     Object.assign(M, {
       gross_yield: +((rentY / price) * 100).toFixed(2),
       real_yield: +(realY * 100).toFixed(2),
@@ -393,6 +410,19 @@ export function evaluate(p: Property, market: MarketContext = {}, equityManOverr
     }
   }
 
+  // ---------- 区の代謝率（住民基本台帳の転入＋転出 ÷ 人口）：表示のみ・点数には入れない ----------
+  {
+    const wt = findWardTaisha(hay);
+    if (wt) {
+      Object.assign(M, {
+        ward_taisha_rate: wt.rate[TAISHA_LATEST],
+        ward_taisha_rank: wt.rank,
+        ward_taisha_change: wt.change4y,
+        ward_taisha_note: wardTaishaNote(wt),
+      });
+    }
+  }
+
   // ---------- 物理条件の減点 ----------
   if (reg !== null) {
     M.residential_exit_open = reg >= G.residentialExitSqm;
@@ -481,6 +511,7 @@ export function toMessage(p: Property, e: Evaluation): string {
     L.push(`表面 ${M.gross_yield}% / 実質 ${M.real_yield}%（K=${M.loan_constant}%）`);
     L.push(`NOI ${M.noi}万 → BTCF ${M.btcf}万/年`);
     L.push(`自己資本増加 ${M.equity_gain}万/年（${M.equity_rate}%）`);
+    if (M.rate_note) L.push(String(M.rate_note));
   }
   if (M.market_note) {
     L.push('');
@@ -492,6 +523,11 @@ export function toMessage(p: Property, e: Evaluation): string {
     L.push('■空室');
     if (M.vacancy_note) L.push(String(M.vacancy_note));
     if (M.ward_akiya_note) L.push(String(M.ward_akiya_note));
+  }
+  if (M.ward_taisha_note) {
+    L.push('');
+    L.push('■街の代謝（人の入れ替わり）');
+    L.push(String(M.ward_taisha_note));
   }
   if (!p.rent_man && M.rent_required_man) {
     L.push('');

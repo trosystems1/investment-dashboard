@@ -3,6 +3,7 @@ import { sb, supabaseConfig } from '@/lib/fudosan/supabase'
 import AreaExplorer, { type Area } from '@/components/fudosan/AreaExplorer'
 import { WARD_AKIYA_LIST, TOKUBETSU_KUBU, AKIYA_YEARS, AKIYA_FLAT_PT, type WardAkiya } from '@/lib/fudosan/ward-akiya'
 import { loadAreaAdjusted } from '@/lib/fudosan/area-adjusted'
+import { WARD_TAISHA_LIST, TAISHA_YEARS, TAISHA_LATEST, TAISHA_MEDIAN, TAISHA_LAND_CORR, type WardTaisha } from '@/lib/fudosan/ward-taisha'
 
 export const revalidate = 60
 // 築年調整の初回計算（成約1.5万件＋町名のRPC）が10秒を超えることがある。2回目以降は1日キャッシュ
@@ -149,6 +150,8 @@ export default async function AreasPage() {
 
       <AreaExplorer areas={areas} slope={adjusted?.age_slope_pct_per_year ?? null} latestPeriod={adjusted?.latest_period ?? null} />
 
+      <WardTaishaSection />
+
       <WardAkiyaSection />
     </main>
   )
@@ -259,4 +262,111 @@ function median(a: number[]) {
   if (!a.length) return 0
   const s = [...a].sort((x, y) => x - y)
   return s[Math.floor(s.length / 2)]
+}
+
+function WardTaishaSection() {
+  const rows = [...WARD_TAISHA_LIST].sort((a, b) => b.rate[TAISHA_LATEST] - a.rate[TAISHA_LATEST])
+  const th: React.CSSProperties = { padding: '8px 10px', fontWeight: 500, color: FAINT, fontSize: 11.5, whiteSpace: 'nowrap', borderBottom: `1px solid ${LINE}` }
+  const td: React.CSSProperties = { padding: '8px 10px', borderBottom: `1px solid ${LINE}`, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }
+  const PAST_T = TAISHA_YEARS.filter(y => y !== TAISHA_LATEST)
+  return (
+    <section id="ward-taisha" style={{ background: CARD, border: `1px solid ${LINE}`, borderRadius: 12, padding: '18px 20px', marginTop: 24 }}>
+      <div style={{ fontSize: 14, color: INK }}>23区の代謝率（1年で人口の何%が入れ替わったか）</div>
+      <div style={{ fontSize: 12, color: MUTED, margin: '4px 0 14px', lineHeight: 1.8 }}>
+        （転入＋転出）÷ 年初の人口。人の出入りが多い区ほど空室が埋まりやすく、入れ替わりのたびに賃料を相場へ合わせやすくなります。
+        {TAISHA_LATEST}年の23区中央値は {TAISHA_MEDIAN.toFixed(1)}%。地価公示（住宅地・令和8年）の上昇率との相関は r = {TAISHA_LAND_CORR.toFixed(2)} です。
+      </div>
+      <TaishaScatter />
+      <div style={{ overflowX: 'auto', marginTop: 14 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, color: INK }}>
+          <thead>
+            <tr>
+              <th style={{ ...th, textAlign: 'right' }}>順位</th>
+              <th style={{ ...th, textAlign: 'left' }}>区</th>
+              <th style={{ ...th, textAlign: 'right' }}>{TAISHA_LATEST}</th>
+              <th style={{ ...th, textAlign: 'right' }}>転入</th>
+              <th style={{ ...th, textAlign: 'right' }}>転出</th>
+              <th style={{ ...th, textAlign: 'right' }}>差し引き</th>
+              <th style={{ ...th, textAlign: 'right' }}>2021年から</th>
+              {PAST_T.map(y => <th key={y} style={{ ...th, textAlign: 'right' }}>{y}</th>)}
+              <th style={{ ...th, textAlign: 'right' }}>地価（住宅地）</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => {
+              const jonan = JONAN.includes(r.ward)
+              return (
+                <tr key={r.ward} style={{ background: jonan ? 'rgba(200,169,106,0.07)' : undefined }}>
+                  <td style={{ ...td, textAlign: 'right', color: FAINT }}>{r.rank}</td>
+                  <td style={{ ...td, color: jonan ? GOLD : INK, fontWeight: jonan ? 600 : 400 }}>{r.ward}</td>
+                  <td style={{ ...td, textAlign: 'right', fontWeight: 600 }}>{r.rate[TAISHA_LATEST].toFixed(1)}%</td>
+                  <td style={{ ...td, textAlign: 'right', color: MUTED }}>{r.inRate.toFixed(1)}%</td>
+                  <td style={{ ...td, textAlign: 'right', color: MUTED }}>{r.outRate.toFixed(1)}%</td>
+                  <td style={{ ...td, textAlign: 'right', color: r.netRate > 0 ? DOWN : r.netRate < 0 ? UP : MUTED }}>{sign(r.netRate)}%</td>
+                  <td style={{ ...td, textAlign: 'right', color: MUTED }}>{sign(r.change4y)}pt</td>
+                  {PAST_T.map(y => (
+                    <td key={y} style={{ ...td, textAlign: 'right', color: FAINT }}>{r.rate[y].toFixed(1)}%</td>
+                  ))}
+                  <td style={{ ...td, textAlign: 'right', color: MUTED }}>{r.land == null ? '—' : `+${r.land.toFixed(1)}%`}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ fontSize: 11.5, color: FAINT, marginTop: 12, lineHeight: 1.8 }}>
+        転入・転出は国内（区から区への引越しを含む）と国外の合計。区より細かい単位の数字は公表されていません。
+        2021年はコロナ禍で都心の転出が多かった年です。物件の点数には入れず、表示だけにしています。
+        出典: <a href="https://www.soumu.go.jp/main_sosiki/jichi_gyousei/daityo/jinkou_jinkoudoutai-setaisuu.html" target="_blank" rel="noreferrer" style={{ color: GOLD }}>総務省 住民基本台帳に基づく人口、人口動態及び世帯数</a>
+        ／地価は東京都「令和8年地価公示 区市町村別用途別対前年変動率」
+      </div>
+    </section>
+  )
+}
+
+function TaishaScatter() {
+  // 横軸: 代謝率、縦軸: 地価公示（住宅地）の上昇率。城南4区だけ名前を出す
+  const pts = WARD_TAISHA_LIST.filter((w): w is WardTaisha & { land: number } => w.land !== null)
+  const W = 640, H = 260, P = { l: 40, r: 16, t: 12, b: 34 }
+  const x0 = 11, x1 = 27, y0 = 4, y1 = 18
+  const sx = (v: number) => P.l + ((v - x0) / (x1 - x0)) * (W - P.l - P.r)
+  const sy = (v: number) => H - P.b - ((v - y0) / (y1 - y0)) * (H - P.t - P.b)
+  // 回帰直線
+  const n = pts.length
+  const mx = pts.reduce((s, w) => s + w.rate[TAISHA_LATEST], 0) / n
+  const my = pts.reduce((s, w) => s + w.land, 0) / n
+  const b = pts.reduce((s, w) => s + (w.rate[TAISHA_LATEST] - mx) * (w.land - my), 0) /
+    pts.reduce((s, w) => s + (w.rate[TAISHA_LATEST] - mx) ** 2, 0)
+  const a = my - b * mx
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="代謝率と地価上昇率の散布図" style={{ width: '100%', height: 'auto', display: 'block' }}>
+      {[12, 15, 18, 21, 24, 27].map(v => (
+        <g key={`x${v}`}>
+          <line x1={sx(v)} x2={sx(v)} y1={P.t} y2={H - P.b} stroke={LINE} />
+          <text x={sx(v)} y={H - P.b + 16} fill={FAINT} fontSize={11} textAnchor="middle">{v}%</text>
+        </g>
+      ))}
+      {[5, 10, 15].map(v => (
+        <g key={`y${v}`}>
+          <line x1={P.l} x2={W - P.r} y1={sy(v)} y2={sy(v)} stroke={LINE} />
+          <text x={P.l - 6} y={sy(v) + 4} fill={FAINT} fontSize={11} textAnchor="end">+{v}%</text>
+        </g>
+      ))}
+      <line x1={sx(x0)} y1={sy(a + b * x0)} x2={sx(x1)} y2={sy(a + b * x1)} stroke={FAINT} strokeDasharray="4 4" />
+      <text x={W - P.r} y={H - 4} fill={FAINT} fontSize={11} textAnchor="end">代謝率（{TAISHA_LATEST}年）→</text>
+      <text x={P.l} y={P.t + 2} fill={FAINT} fontSize={11}>↑ 地価公示 住宅地（令和8年）</text>
+      {pts.map(w => {
+        const jonan = JONAN.includes(w.ward)
+        const cx = sx(w.rate[TAISHA_LATEST]), cy = sy(w.land)
+        return (
+          <g key={w.ward}>
+            <circle cx={cx} cy={cy} r={jonan ? 5 : 3.5} fill={jonan ? GOLD : 'rgba(232,228,217,0.35)'}>
+              <title>{`${w.ward} 代謝率 ${w.rate[TAISHA_LATEST].toFixed(1)}% / 地価 +${w.land.toFixed(1)}%`}</title>
+            </circle>
+            {jonan && <text x={cx + 8} y={cy + 4} fill={GOLD} fontSize={11.5}>{w.ward}</text>}
+          </g>
+        )
+      })}
+    </svg>
+  )
 }
