@@ -2,10 +2,16 @@
 // 閾値を変えたら CRITERIA_VERSION を必ず上げること。
 // 「いつ何を変えたら通過率がどう動いたか」が残らないと PDCA の Act が効かない。
 
-export const CRITERIA_VERSION = 'v2.3.1-jonan-wealth';
+export const CRITERIA_VERSION = 'v2.4-jonan-wealth';
 
 export const CONFIG = {
-  loan: { rate: 0.022, years: 35, equityMan: 1500, costRate: 0.075 },
+  // 金利の前提（2026-11-07 見直し）
+  //   日銀は 2026/9/18 に政策金利を 1.00% → 1.25% へ。12月会合で 1.5%、2027年1-3月期に 1.75% という見通しが出ている
+  //   オリックス銀行 投資用マンションローン（2026/11/1 適用・短プラ 2.675%）
+  //     一般 2.70〜3.60% ／ 優遇（年収550万以上）2.30% ／ プレミアム（年収1,000万以上）2.20%
+  //   rate      … 現在のプレミアム 2.20% に、12月に見込まれる1回分（+0.25pt）を織り込んだ値
+  //   stressRate … さらに +0.5pt（政策金利 2.0% 相当）。判定には使わず、指標と要確認に出す
+  loan: { rate: 0.0245, stressRate: 0.0295, years: 35, equityMan: 1500, costRate: 0.075 },
   ops: { vacancy: 0.05, pm: 0.05, insuranceMan: 1.5, taxRate: 0.0035 },
   exit: { holdYears: 15, apprRate: 0.010, apprStress: 0.0, sellCostRate: 0.04 },
   gates: {

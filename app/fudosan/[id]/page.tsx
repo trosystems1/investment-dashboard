@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getLatestProperty } from '@/lib/fudosan/store'
 import { findWardAkiya, wardAkiyaNote } from '@/lib/fudosan/ward-akiya'
+import { findWardTaisha, wardTaishaNote } from '@/lib/fudosan/ward-taisha'
 
 export const revalidate = 60
 
@@ -45,6 +46,7 @@ export default async function FudosanDetailPage({ params }: { params: { id: stri
   const m = row.metrics ?? {}
   // 区の空き家率は静的データなので、再判定を待たずに住所からその場で引く
   const wardAkiya = findWardAkiya([row.city, row.address].filter(Boolean).join(' '))
+  const wardTaisha = findWardTaisha([row.city, row.address].filter(Boolean).join(' '))
   const style = VERDICT[row.verdict ?? 'PENDING'] ?? VERDICT.PENDING
   const metricPairs: Array<[string, string]> = [
     ['表面利回り', num(m.gross_yield) != null ? `${m.gross_yield}%` : '—'],
@@ -52,6 +54,7 @@ export default async function FudosanDetailPage({ params }: { params: { id: stri
     ['NOI', num(m.noi) != null ? `${m.noi}万` : '—'],
     ['BTCF', num(m.btcf) != null ? `${m.btcf}万/年` : '—'],
     ['自己資本増加', num(m.equity_gain) != null ? `${m.equity_gain}万（${m.equity_rate}%）` : '—'],
+    [`金利${num(m.stress_rate) ?? '+0.5pt'}%時のBTCF`, num(m.btcf_stress) != null ? `${m.btcf_stress}万/年（増加率${m.equity_rate_stress}%）` : '—'],
     ['㎡単価 vs 相場', num(m.price_vs_market) != null ? `${m.price_vs_market}%` : '—'],
     ['必要家賃', num(m.rent_required_man) != null ? `${m.rent_required_man}万/月` : '—'],
     ['建物の賃貸募集率', num(m.vacancy_rate) != null
@@ -139,6 +142,12 @@ export default async function FudosanDetailPage({ params }: { params: { id: stri
             <p style={{ fontSize: 12, color: '#9CA3AF', margin: '6px 0 0', lineHeight: 1.6 }}>
               {wardAkiyaNote(wardAkiya)}
               <Link href="/fudosan/areas#ward-akiya" style={{ color: '#C49C48', marginLeft: 8 }}>23区の比較</Link>
+            </p>
+          )}
+          {wardTaisha && (
+            <p style={{ fontSize: 12, color: '#9CA3AF', margin: '6px 0 0', lineHeight: 1.6 }}>
+              {wardTaishaNote(wardTaisha)}
+              <Link href="/fudosan/areas#ward-taisha" style={{ color: '#C49C48', marginLeft: 8 }}>23区の比較</Link>
             </p>
           )}
           {row.rent_man == null && typeof m.rent_required_driver === 'string' && (
